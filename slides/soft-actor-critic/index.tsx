@@ -520,39 +520,32 @@ export const meta: SlideMeta = {
 // Notes orales, une par page. Total visé : environ 7 min 30.
 // Hugo : pages 1 à 4 (~2 min 30) · Mathis : pages 5 à 7 (~2 min 30) · Quentin : pages 8 à 11 (~2 min 30).
 export const notes: (string | undefined)[] = [
-  `HUGO · ≈ 0:25
-On vous présente SAC, Soft Actor-Critic. C'est un algo de RL sorti en 2018, à Berkeley.
-Moi je vais poser le problème et l'idée, Mathis vous montre comment c'est construit et comment on le règle, et Quentin finit avec des exemples réels et quand l'utiliser.
+  `On vous présente SAC, Soft Actor-Critic. C'est un algorithme d’apprentissage par renforcement sorti en 2018, à Berkeley.
+Son idée centrale, c’est d’apprendre à agir efficacement tout en continuant à explorer.
+Je vais présenter le problème et l’idée générale. Mathis expliquera comment c'est construit et comment on le règle et Quentin finira avec des exemples réels et quand l'utiliser.
 Le dessin à droite, on y revient tout de suite.`,
-
-  `HUGO · ≈ 0:50
-On part de ce qu'on a vu en cours : le DQN. On donne l'état au réseau, il sort une valeur Q par action, et on prend la plus grande.
-Ça marche quand on a quelques actions, comme sur Atari.
-Premier problème : si l'action est continue, par exemple l'angle d'un volant ou la force d'un moteur, il y a une infinité d'actions possibles. On ne peut pas avoir une sortie par action.
-Deuxième problème : avec ε-greedy, quand on explore, on prend une action complètement au hasard, même une action absurde.
-SAC garde ce qui marche dans le DQN, le réseau Q, le replay buffer et le target network, et règle ces deux problèmes.`,
-
-  `HUGO · ≈ 0:50
-L'idée de SAC : en plus de la récompense, on donne un bonus à l'agent quand il garde plusieurs options ouvertes. Ce bonus, c'est l'entropie.
+  `Pour comprendre SAC, on part d’un algorithme appelé DQN.
+On lui donne la situation actuelle, par exemple la position d’un personnage dans un jeu. Son réseau attribue une note à chaque action possible : gauche, haut, bas ou droite. Cette note estime ce que l’action peut rapporter à long terme. On choisit généralement celle qui a la meilleure note.
+Mais cette approche présente deux limites.
+Premièrement, pour commander un moteur, l’action peut prendre une infinité de valeurs. On ne peut donc plus prévoir une sortie du réseau pour chaque action.
+Deuxièmement, pour explorer, DQN choisit parfois une action au hasard, sans tenir compte de sa note.
+SAC répond à ces difficultés : il est adapté aux actions continues et apprend une façon de varier ses choix.`,
+  `L'idée de SAC : en plus de la récompense, on donne un bonus à l'agent quand il garde plusieurs options ouvertes. Ce bonus, c'est l'entropie.
 À gauche, entropie faible : l'agent fait toujours exactement la même action.
 À droite, entropie forte : il hésite entre plusieurs actions, et surtout entre les bonnes.
 Ça remplace ε-greedy : l'agent explore autour des bonnes actions au lieu de tirer n'importe quoi.
-Petite précision : ce α n'est pas le α du Q-learning, le taux d'apprentissage. Ici c'est le poids du bonus.`,
-
-  `HUGO · ≈ 0:35
-α règle le dosage. Les pointillés, c'est la qualité de chaque action ; la courbe pleine, ce que l'agent choisit.
+Petite précision : ce α alpha représente le poids du bonus.`,
+  `α règle le dosage. Les pointillés, c'est la qualité de chaque action ; la courbe pleine, ce que l'agent choisit.
 α trop faible : il met tout sur une seule action, il est figé.
 α bien dosé : il explore les deux bonnes zones.
 α trop fort : il joue presque au hasard.
 Et dans SAC, on n'a pas à le choisir : α est appris pendant l'entraînement, comme les poids des réseaux. Je laisse Mathis vous montrer comment c'est construit.`,
-
   `MATHIS · ≈ 0:55
 SAC, c'est un acteur et deux critiques, trois réseaux de neurones.
 L'acteur reçoit l'état et sort directement une action, même continue. Ça règle le premier problème du DQN.
 Les critiques, ce sont des réseaux Q comme dans le DQN : ils prennent l'état et l'action, et donnent une note. Ici le premier dit 12, le second dit 8.
 On garde le minimum, 8. Un réseau Q a tendance à surestimer certaines actions, et l'acteur irait justement vers ces erreurs. Avec deux réseaux, on prend la note la plus basse pour limiter ce problème.
 Ensuite l'acteur se corrige pour aller vers les actions bien notées, en gardant son bonus d'entropie.`,
-
   `MATHIS · ≈ 0:50
 L'entraînement, c'est une boucle en quatre temps.
 Un, l'agent agit, avec un peu de hasard.
@@ -560,7 +553,6 @@ Deux, il stocke ce qui s'est passé dans le replay buffer, comme pour le DQN.
 Trois, il tire 256 souvenirs au hasard, récents ou anciens.
 Quatre, il corrige l'acteur, les critiques et α. Et on recommence des centaines de milliers de fois.
 Comme on réapprend sur de vieilles expériences, SAC est off-policy : chaque essai sert plusieurs fois. C'est très utile quand un essai coûte cher, par exemple sur un vrai robot.`,
-
   `MATHIS · ≈ 0:50
 Côté hyperparamètres, il y en a six, et on en connaît déjà cinq.
 γ, le facteur d'actualisation, à 0,99, comme en Q-learning.
@@ -569,26 +561,22 @@ Un replay buffer d'un million d'expériences, et des batchs de 256.
 τ, c'est la vitesse à laquelle les réseaux cibles suivent : dans le DQN on les recopie tous les C pas, dans SAC on les fait glisser un tout petit peu à chaque pas.
 Le seul nouveau, c'est α, et il est automatique.
 Ces valeurs par défaut marchent bien sur la plupart des problèmes. Quentin va vous montrer ce que ça donne en vrai.`,
-
   `QUENTIN · ≈ 0:40
 Un exemple réel, publié par Berkeley et Google en 2018 : Minitaur, un petit robot à quatre pattes.
 Avec SAC, il a appris à marcher en à peu près deux heures, directement sur le vrai robot, pas en simulation.
 Il a été entraîné seulement sur sol plat. Et ensuite, il arrive à marcher sur des pentes et à passer des obstacles qu'il n'a jamais vus.
 D'après les auteurs, c'est grâce à l'entropie : il a appris plusieurs façons de bouger, donc il s'adapte mieux.`,
-
   `QUENTIN · ≈ 0:30
 Dans le même travail, deux autres robots.
 Un bras à sept articulations qui apprend à empiler des Lego en deux heures.
 Et une main robot qui apprend à tourner une vanne en vingt heures, en ne voyant que l'image d'une caméra.
 Plus largement, SAC est beaucoup utilisé dès que les actions sont continues : robotique, énergie, conduite en simulation.`,
-
   `QUENTIN · ≈ 0:45
 Alors, quand choisir SAC ?
 Sur le schéma : en horizontal, actions discrètes ou continues ; en vertical, est-ce que l'algo réutilise ses données.
 Le DQN du cours, c'est le discret. PPO jette ses données après chaque mise à jour. TD3 est proche de SAC, mais il faut régler son exploration à la main.
 Donc SAC est recommandé quand les actions sont continues, quand chaque essai coûte cher, et quand on veut un comportement robuste.
 Par contre, avec peu d'actions discrètes, un DQN suffit. Et si on a un simulateur très rapide qu'on peut lancer des milliers de fois en parallèle, PPO va souvent plus vite.`,
-
   `QUENTIN · ≈ 0:25
 Pour résumer : un acteur qui choisit l'action et deux critiques qui la notent, en gardant la note la plus basse. Un replay buffer pour réutiliser les anciens essais. Et un bonus d'entropie pour explorer, avec α appris automatiquement.
 Les sources sont en bas. Merci, vous avez des questions ?`,
