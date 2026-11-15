@@ -175,7 +175,7 @@ function useClock(active: boolean): number {
     if (!active) return;
     let raf = 0;
     const start = performance.now();
-    const loop = (now: number) => { setT((now - start) / 1000); raf = requestAnimationFrame(loop); };
+    const loop = (now: number) => { setT(Math.max(0, now - start) / 1000); raf = requestAnimationFrame(loop); };
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
   }, [active]);
@@ -471,114 +471,262 @@ const LocalOptimum: Page = () => {
 };
 
 // =====================================================================
-// 5. L'idée de SAC
+// 5. L'idée de SAC : α, entropie et sortie de l'acteur
 // =====================================================================
 
-function SteerBell() {
-  const W = 640, H = 150;
-  const X = (a: number) => 20 + ((a + 30) / 60) * (W - 40);
+// Trois réglages de α, et ce que l'acteur sort pour chacun (actions normalisées dans [−1, 1]).
+// Entropie d'une gaussienne : ½ ln(2πe σ²), additionnée sur les deux actions.
+const ALPHAS = [
+  { name: 'α ≈ 0', verdict: 'Toujours la même trajectoire', steerMu: 0.27, steerSigma: 0.033, pedalMu: 0.7, pedalSigma: 0.02, color: muted },
+  { name: 'α bien dosé', verdict: 'Varie, mais reste sur la route', steerMu: 0.27, steerSigma: 0.2, pedalMu: 0.7, pedalSigma: 0.04, color: actorHex },
+  { name: 'α trop grand', verdict: 'Conduit presque au hasard', steerMu: 0.27, steerSigma: 0.67, pedalMu: 0.7, pedalSigma: 0.3, color: entropy },
+];
+const gaussEntropy = (sigma: number) => 0.5 * Math.log(2 * Math.PI * Math.E * sigma * sigma);
+const fmt = (v: number, d = 1) => (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(d).replace('.', ',');
+
+// Conducteurs correspondant aux trois réglages
+const lowAlpha: Driver = (rand, obstacle) => {
+  const p = rand() * 6.28;
+  return drive((s) => 0.6 * insideLine(s) + 0.02 * Math.sin(s + p), obstacle);
+};
+const highAlpha: Driver = (rand, obstacle) => {
+  const p1 = rand() * 6.28, p2 = rand() * 6.28, a1 = 0.7 + 0.5 * rand();
+  return drive((s) => a1 * Math.sin((2 * Math.PI * s) / 6 + p1) + 0.55 * Math.sin((2 * Math.PI * s) / 2.6 + p2), obstacle);
+};
+const ALPHA_DRIVERS = [lowAlpha, sac, highAlpha];
+
+function Bell({ title, unit, mu, sigma, color, range }: { title: string; unit: (v: number) => string; mu: number; sigma: number; color: string; range: [number, number] }) {
+  const W = 440, H = 170, base = H - 34;
+  const X = (a: number) => 14 + ((a - range[0]) / (range[1] - range[0])) * (W - 28);
+  const peak = Math.min(1, 0.1 / sigma);   // plus σ est petit, plus le pic est haut et étroit
   let d = '';
-  for (let a = -30; a <= 30; a += 0.5) {
-    const y = H - 30 - 100 * Math.exp(-((a - 6) ** 2) / (2 * 8 ** 2));
+  for (let i = 0; i <= 200; i++) {
+    const a = range[0] + (i / 200) * (range[1] - range[0]);
+    const y = base - (base - 22) * peak * Math.exp(-((a - mu) ** 2) / (2 * sigma * sigma));
     d += `${d ? 'L' : 'M'}${X(a).toFixed(1)},${y.toFixed(1)}`;
   }
-  return <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} style={{ display: 'block' }}>
-    <path d={`${d}L${X(30)},${H - 30}L${X(-30)},${H - 30}Z`} style={{ fill: actorHex, fillOpacity: 0.15 }} />
-    <path d={d} style={{ fill: 'none', stroke: actorHex, strokeWidth: 4 }} />
-    <line x1={X(-30)} y1={H - 30} x2={X(30)} y2={H - 30} style={{ stroke: muted, strokeWidth: 2 }} />
-    <line x1={X(6)} y1={H - 30} x2={X(6)} y2={18} style={{ stroke: actorHex, strokeWidth: 2, strokeDasharray: '6 6' }} />
-    <text x={X(6) + 10} y={30} style={{ fill: actorHex, fontSize: 24, fontFamily: mono }}>μ</text>
-    <text x={X(-30)} y={H - 4} style={{ fill: muted, fontSize: 22, fontFamily: mono }}>−30°</text>
-    <text x={X(0)} y={H - 4} textAnchor="middle" style={{ fill: muted, fontSize: 22, fontFamily: mono }}>volant</text>
-    <text x={X(30)} y={H - 4} textAnchor="end" style={{ fill: muted, fontSize: 22, fontFamily: mono }}>+30°</text>
+  return <div>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+      <span style={{ fontSize: 28, fontWeight: 800 }}>{title}</span>
+      <span style={{ fontFamily: mono, fontSize: 24, color }}>μ = {unit(mu)} · σ = {unit(sigma).replace('+', '')}</span>
+    </div>
+    <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} style={{ display: 'block' }}>
+      <path d={`${d}L${X(range[1])},${base}L${X(range[0])},${base}Z`} style={{ fill: color, fillOpacity: 0.15 }} />
+      <path d={d} style={{ fill: 'none', stroke: color, strokeWidth: 4 }} />
+      <line x1={X(range[0])} y1={base} x2={X(range[1])} y2={base} style={{ stroke: muted, strokeWidth: 2 }} />
+      <text x={X(range[0])} y={H - 4} style={{ fill: muted, fontSize: 22, fontFamily: mono }}>{unit(range[0])}</text>
+      <text x={X(range[1])} y={H - 4} textAnchor="end" style={{ fill: muted, fontSize: 22, fontFamily: mono }}>{unit(range[1])}</text>
+    </svg>
+  </div>;
+}
+
+function EntropyGauge({ value, color }: { value: number; color: string }) {
+  const W = 920, lo = -6, hi = 2;
+  const X = (v: number) => 20 + ((v - lo) / (hi - lo)) * (W - 40);
+  return <svg viewBox={`0 0 ${W} 86`} width={W} height={86} style={{ display: 'block' }}>
+    <rect x={X(lo)} y={34} width={X(hi) - X(lo)} height={14} rx={7} style={{ fill: soft }} />
+    <line x1={X(-2)} y1={18} x2={X(-2)} y2={64} style={{ stroke: entropy, strokeWidth: 3, strokeDasharray: '6 5' }} />
+    <text x={X(-2)} y={14} textAnchor="middle" style={{ fill: entropy, fontSize: 22, fontFamily: mono }}>cible −2</text>
+    <circle cx={X(Math.max(lo, Math.min(hi, value)))} cy={41} r={16} style={{ fill: color, stroke: panel, strokeWidth: 4 }} />
+    {[-6, -4, -2, 0, 2].map((v) => <text key={v} x={X(v)} y={82} textAnchor="middle" style={{ fill: muted, fontSize: 20, fontFamily: mono }}>{v === 0 ? '0' : fmt(v, 0)}</text>)}
   </svg>;
+}
+
+function AlphaTrack({ level, active }: { level: number; active: boolean }) {
+  const t = useClock(active);
+  const driver = ALPHA_DRIVERS[level];
+  const { live } = useRuns(t, driver, 0.8, Infinity, 40 + level);
+  return <Track w={560} h={660} live={active ? live : stillRuns(driver, 7, false, 40 + level)} t={t} color={ALPHAS[level].color} obstacle={false} still={!active} />;
 }
 
 const SacIdea: Page = () => {
   const active = useIsActivePage();
   const t = useClock(active);
-  const { live } = useRuns(t, sac, 0.8, Infinity, 17);
-  return <Frame kicker="La solution" speaker={MATHIS} title="SAC : varier ses trajectoires est récompensé">
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 600px', gap: 70, alignItems: 'start' }}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
-        <Bubble who="Critique" color={critic}>Toujours la même ? « Bof. »</Bubble>
-        <Bubble who="Critique" color={critic}>Variées et sur la route ? « Mieux ! »</Bubble>
-        <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 16, fontSize: 38, fontWeight: 800 }}>
-          <span style={{ color: critic, border: `4px solid ${critic}`, borderRadius: 16, padding: '8px 22px', background: panel }}>Récompense</span>
+  const [picked, setPicked] = useState<number | null>(null);
+  const level = picked ?? (active ? Math.floor(t / 6) % 3 : 1);
+  const A = ALPHAS[level];
+  const H = gaussEntropy(A.steerSigma) + gaussEntropy(A.pedalSigma);
+  return <Frame kicker="La solution · α et entropie" speaker={MATHIS} title="SAC : ce que α change à la sortie de l’acteur">
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 560px', gap: 60, alignItems: 'start' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, fontSize: 36, fontWeight: 800 }}>
+          <span style={{ color: critic, border: `4px solid ${critic}`, borderRadius: 16, padding: '6px 22px', background: panel }}>Récompense</span>
           <span style={{ color: muted }}>+</span>
-          <span style={{ color: entropy, border: `4px solid ${entropy}`, borderRadius: 16, padding: '8px 22px', background: panel }}>α × Entropie</span>
+          <span style={{ color: entropy, border: `4px solid ${entropy}`, borderRadius: 16, padding: '6px 22px', background: panel }}>α × Entropie</span>
+          <span style={{ fontSize: 26, fontWeight: 600, color: muted, marginLeft: 8 }}>plus σ est grand,<br />plus l’entropie est forte</span>
         </div>
-        <div style={{ fontSize: 28, color: muted, marginTop: 6 }}>L’acteur sort une <strong style={{ color: actor }}>zone de braquages</strong> (μ, σ) et tire dedans :</div>
-        <SteerBell />
+        <div style={{ display: 'flex', gap: 12 }}>
+          {ALPHAS.map((a, i) => <div role="button" tabIndex={0} key={a.name} onClick={() => setPicked(i)} style={{ font: 'inherit', fontSize: 26, fontWeight: 800, cursor: 'pointer', borderRadius: 12, padding: '10px 20px', border: `3px solid ${a.color}`, background: i === level ? a.color : panel, color: i === level ? '#FFFFFF' : a.color }}>{a.name}</div>)}
+        </div>
+        <div style={{ background: panel, border: `3px solid ${A.color}`, borderRadius: 'var(--osd-radius)', padding: '16px 26px 10px' }}>
+          <div style={{ ...label, fontSize: 21, marginBottom: 6 }}>Sortie de l’acteur dans un état s</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 34 }}>
+            <Bell title="Volant" unit={(v) => `${v >= 0 ? '+' : '−'}${Math.round(Math.abs(v) * 30)}°`} mu={A.steerMu} sigma={A.steerSigma} color={A.color} range={[-1, 1]} />
+            <Bell title="Pédale" unit={(v) => `${v >= 0 ? '' : '−'}${Math.abs(v).toFixed(2).replace('.', ',')}`} mu={A.pedalMu} sigma={A.pedalSigma} color={A.color} range={[0, 1]} />
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 20 }}>
+          <span style={{ fontSize: 30, fontWeight: 800 }}>Entropie : <span style={{ color: A.color, fontFamily: mono }}>{fmt(H)}</span></span>
+          <span style={{ fontSize: 28, color: muted }}>{A.verdict}</span>
+        </div>
+        <EntropyGauge value={H} color={A.color} />
       </div>
-      <Track w={600} h={660} live={active ? live : stillRuns(sac, 8, false, 17)} t={t} color={entropy} obstacle={false} still={!active} />
+      <AlphaTrack key={level} level={level} active={active} />
     </div>
   </Frame>;
 };
 
 // =====================================================================
-// 6. Comment SAC apprend
+// 6. Comment SAC apprend (avec les vraies courbes d'un entraînement)
 // =====================================================================
 
-function Node({ x, y, w, h, color, title, sub }: { x: number; y: number; w: number; h: number; color: string; title: string; sub: string }) {
+// Courbes MESURÉES sur notre propre SAC (projet ml-rl-sac : robot 2D qui rejoint une cible,
+// 2 actions continues vitesse + rotation, entropie cible −2), échantillonnées tous les 1 500 pas.
+const RUN_STEPS = 60_000;
+const RUN_SUCCESS = [0, 0, 0, 0, 0, 2, 4, 6, 18, 30, 54, 72, 78, 82, 78, 74, 68, 60, 54, 56, 60, 66, 72, 78, 72, 70, 74, 78, 86, 90, 90, 90, 92, 94, 96, 94, 96, 96, 94, 92, 92];
+const RUN_ALPHA = [1.0, 1.0, 1.0, 1.0, 0.744, 0.509, 0.312, 0.208, 0.137, 0.096, 0.071, 0.05, 0.041, 0.038, 0.037, 0.04, 0.041, 0.041, 0.039, 0.036, 0.036, 0.036, 0.036, 0.036, 0.038, 0.037, 0.037, 0.039, 0.038, 0.038, 0.038, 0.038, 0.038, 0.04, 0.039, 0.037, 0.039, 0.039, 0.037, 0.039, 0.039];
+const RUN_ENTROPY: (number | null)[] = [null, null, null, null, 1.27, 1.16, 0.96, 0.38, -0.1, -0.51, -0.88, -1.49, -1.66, -2.27, -2.08, -2.46, -1.81, -2.06, -2.14, -2.28, -1.99, -2.21, -1.94, -2.01, -1.62, -1.9, -1.94, -2.14, -2.09, -2.01, -2.19, -2.14, -1.95, -1.96, -2.0, -1.85, -2.0, -1.87, -1.79, -1.97, -2.01];
+const RANDOM_STEPS = 5_000;
+
+function at(series: (number | null)[], u: number): number | null {
+  const x = u * (series.length - 1);
+  const i = Math.floor(x), f = x - i;
+  const a = series[i], b = series[Math.min(i + 1, series.length - 1)];
+  if (a === null || b === null) return a ?? b;
+  return a + (b - a) * f;
+}
+
+function MiniChart({ title, series, u, color, lo, hi, log, ticks, fmtTick, target }: {
+  title: string; series: (number | null)[]; u: number; color: string; lo: number; hi: number; log?: boolean;
+  ticks: number[]; fmtTick: (v: number) => string; target?: { v: number; label: string };
+}) {
+  const W = 500, H = 210, pad = { l: 64, r: 14, t: 14, b: 30 };
+  const X = (x: number) => pad.l + x * (W - pad.l - pad.r);
+  const T = (v: number) => (log ? Math.log10(v) : v);
+  const Y = (v: number) => H - pad.b - ((T(v) - T(lo)) / (T(hi) - T(lo))) * (H - pad.t - pad.b);
+  let d = '';
+  const n = series.length - 1;
+  for (let i = 0; i <= n; i++) {
+    if (i / n > u) break;
+    const v = series[i];
+    if (v === null) continue;
+    d += `${d ? 'L' : 'M'}${X(i / n).toFixed(1)},${Y(v).toFixed(1)}`;
+  }
+  const cur = at(series, u);
+  return <div>
+    <div style={{ fontSize: 26, fontWeight: 800, marginBottom: 4 }}>{title} <span style={{ fontFamily: mono, color }}>{cur === null ? '—' : fmtTick(cur)}</span></div>
+    <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} style={{ display: 'block', background: panel, borderRadius: 12 }}>
+      {ticks.map((v) => <g key={v}>
+        <line x1={pad.l} y1={Y(v)} x2={W - pad.r} y2={Y(v)} style={{ stroke: soft, strokeWidth: 2 }} />
+        <text x={pad.l - 8} y={Y(v) + 7} textAnchor="end" style={{ fill: muted, fontSize: 19, fontFamily: mono }}>{fmtTick(v)}</text>
+      </g>)}
+      {target && <g>
+        <line x1={pad.l} y1={Y(target.v)} x2={W - pad.r} y2={Y(target.v)} style={{ stroke: entropy, strokeWidth: 2, strokeDasharray: '7 6' }} />
+        <text x={W - pad.r - 4} y={Y(target.v) - 8} textAnchor="end" style={{ fill: entropy, fontSize: 19, fontFamily: mono }}>{target.label}</text>
+      </g>}
+      <rect x={X(0)} y={pad.t} width={X(RANDOM_STEPS / RUN_STEPS) - X(0)} height={H - pad.t - pad.b} style={{ fill: muted, fillOpacity: 0.08 }} />
+      <path d={d} style={{ fill: 'none', stroke: color, strokeWidth: 4, strokeLinejoin: 'round' }} />
+      {cur !== null && <circle cx={X(u)} cy={Y(cur)} r={8} style={{ fill: color, stroke: panel, strokeWidth: 3 }} />}
+      <text x={X(0)} y={H - 6} style={{ fill: muted, fontSize: 19, fontFamily: mono }}>0</text>
+      <text x={X(1)} y={H - 6} textAnchor="end" style={{ fill: muted, fontSize: 19, fontFamily: mono }}>60 000 pas</text>
+    </svg>
+  </div>;
+}
+
+function LoopNode({ x, y, w, h, color, title, lines }: { x: number; y: number; w: number; h: number; color: string; title: string; lines: string[] }) {
   return <g>
     <rect x={x} y={y} width={w} height={h} rx={20} style={{ fill: panel, stroke: color, strokeWidth: 5 }} />
-    <text x={x + w / 2} y={y + h / 2 - 6} textAnchor="middle" style={{ fill: color, fontSize: 38, fontWeight: 800 }}>{title}</text>
-    <text x={x + w / 2} y={y + h / 2 + 34} textAnchor="middle" style={{ fill: muted, fontSize: 26 }}>{sub}</text>
+    <text x={x + w / 2} y={y + 56} textAnchor="middle" style={{ fill: color, fontSize: 36, fontWeight: 800 }}>{title}</text>
+    {lines.map((l, i) => <text key={i} x={x + w / 2} y={y + 100 + i * 36} textAnchor="middle" style={{ fill: ink, fontSize: 25, fontFamily: mono }}>{l}</text>)}
   </g>;
 }
 
-const HowItLearns: Page = () => <Frame kicker="La solution · fonctionnement" speaker={MATHIS} title="Comment SAC apprend">
-  <svg viewBox="0 0 1640 520" width={1640} height={520} style={{ display: 'block' }}>
-    <defs>
-      <marker id="h-ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" style={{ fill: muted }} /></marker>
-    </defs>
-    <path d="M440,110 L600,110" style={{ stroke: muted, strokeWidth: 4 }} markerEnd="url(#h-ah)" />
-    <text x={520} y={92} textAnchor="middle" style={{ fill: muted, fontSize: 24 }}>agit</text>
-    <path d="M1000,110 L1160,110" style={{ stroke: muted, strokeWidth: 4 }} markerEnd="url(#h-ah)" />
-    <text x={1080} y={92} textAnchor="middle" style={{ fill: muted, fontSize: 24 }}>note</text>
-    <path d="M1360,200 L1360,300" style={{ stroke: muted, strokeWidth: 4 }} markerEnd="url(#h-ah)" />
-    <text x={1380} y={258} style={{ fill: muted, fontSize: 24 }}>256 au hasard</text>
-    <path d="M1160,390 L640,390" style={{ stroke: muted, strokeWidth: 4 }} markerEnd="url(#h-ah)" />
-    <text x={900} y={372} textAnchor="middle" style={{ fill: muted, fontSize: 24 }}>« plutôt par là »</text>
-    <path d="M240,300 L240,200" style={{ stroke: muted, strokeWidth: 4 }} markerEnd="url(#h-ah)" />
-    <Node x={40} y={20} w={400} h={180} color={actor} title="Acteur" sub="zone de braquages (μ, σ)" />
-    <Node x={600} y={20} w={400} h={180} color={env} title="Conduire" sub="+ avance, − sort de la route" />
-    <Node x={1160} y={20} w={400} h={180} color={ink} title="Carnet" sub="replay buffer · 10⁶ moments" />
-    <Node x={1160} y={300} w={400} h={180} color={critic} title="2 critiques" sub="on garde la note la + basse" />
-    <Node x={40} y={300} w={600} h={180} color={entropy} title="α, le thermostat" sub="trop sûr de lui → α monte" />
-  </svg>
-  <div style={{ marginTop: 'auto', background: panel, border: `2px solid ${rule}`, borderRadius: 'var(--osd-radius)', padding: '22px 30px', display: 'flex', gap: 30, alignItems: 'baseline' }}>
-    <span style={{ ...label, flex: 'none' }}>Cible des critiques</span>
-    <span style={{ fontFamily: '"STIX Two Text", "Cambria Math", Georgia, serif', fontSize: 38, fontStyle: 'italic' }}>
-      y = r + γ · ( <span style={{ color: critic }}>min(Q̄₁, Q̄₂)</span>(s′, a′) <span style={{ color: entropy }}>− α log π(a′ | s′)</span> )
-    </span>
-  </div>
-</Frame>;
+// Le jeton qui fait le tour de la boucle : acteur → piste → carnet → critiques → retour à l'acteur
+const LOOP_PATH: [number, number][] = [[380, 140], [470, 140], [810, 140], [900, 140], [1240, 140], [1330, 140], [1485, 140], [1485, 300], [190, 300], [190, 240]];
+function alongPath(pts: [number, number][], u: number): [number, number] {
+  const seg = pts.slice(1).map((p, i) => Math.hypot(p[0] - pts[i][0], p[1] - pts[i][1]));
+  let d = u * seg.reduce((a, b) => a + b, 0);
+  for (let i = 0; i < seg.length; i++) {
+    if (d <= seg[i]) { const f = d / seg[i]; return [pts[i][0] + (pts[i + 1][0] - pts[i][0]) * f, pts[i][1] + (pts[i + 1][1] - pts[i][1]) * f]; }
+    d -= seg[i];
+  }
+  return pts[pts.length - 1];
+}
+
+const HowItLearns: Page = () => {
+  const active = useIsActivePage();
+  const t = useClock(active);
+  const cycle = 24;   // l'entraînement en accéléré dure 20 s, puis 4 s de pause sur le résultat
+  const u = active ? Math.min(1, (t % cycle) / 20) : 1;
+  const step = Math.round(u * RUN_STEPS);
+  const alpha = at(RUN_ALPHA, u) ?? 1;
+  const ent = at(RUN_ENTROPY, u);
+  const [tx, ty] = alongPath(LOOP_PATH, active ? (t % 2.4) / 2.4 : 0.15);
+  const phase = step < RANDOM_STEPS ? 'Actions au hasard pour remplir le carnet'
+    : step < 15_000 ? 'α chute : l’acteur arrête de conduire au hasard'
+      : 'L’entropie tient la cible −2, la réussite monte';
+  const n = (v: number) => v.toLocaleString('fr-FR');
+  return <Frame kicker="La solution · fonctionnement" speaker={MATHIS} title="Comment SAC apprend">
+    <svg viewBox="0 0 1640 330" width={1640} height={330} style={{ display: 'block' }}>
+      <defs>
+        <marker id="h-ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" style={{ fill: muted }} /></marker>
+      </defs>
+      <path d="M380,140 L466,140" style={{ stroke: muted, strokeWidth: 4 }} markerEnd="url(#h-ah)" />
+      <text x={425} y={124} textAnchor="middle" style={{ fill: muted, fontSize: 26, fontFamily: mono }}>a</text>
+      <path d="M810,140 L896,140" style={{ stroke: muted, strokeWidth: 4 }} markerEnd="url(#h-ah)" />
+      <text x={855} y={124} textAnchor="middle" style={{ fill: muted, fontSize: 20, fontFamily: mono }}>s,a,r,s′</text>
+      <path d="M1240,140 L1326,140" style={{ stroke: muted, strokeWidth: 4 }} markerEnd="url(#h-ah)" />
+      <text x={1285} y={124} textAnchor="middle" style={{ fill: muted, fontSize: 22, fontFamily: mono }}>256</text>
+      <path d="M1485,240 L1485,300 L190,300 L190,244" style={{ fill: 'none', stroke: muted, strokeWidth: 4 }} markerEnd="url(#h-ah)" />
+      <text x={1180} y={290} textAnchor="middle" style={{ fill: muted, fontSize: 24 }}>« plutôt par là » (gradient)</text>
+      <LoopNode x={0} y={40} w={380} h={200} color={actor} title="Acteur π" lines={['volant : μ, σ', 'pédale : μ, σ']} />
+      <LoopNode x={470} y={40} w={340} h={200} color={env} title="Environnement" lines={['la piste', 'renvoie r et s′']} />
+      <LoopNode x={900} y={40} w={340} h={200} color={ink} title="Replay buffer" lines={[`${n(Math.min(step, 1_000_000))}`, 'moments gardés']} />
+      <LoopNode x={1330} y={40} w={310} h={200} color={critic} title="2 critiques" lines={['Q₁, Q₂', 'note = min']} />
+      <g>
+        <rect x={430} y={276} width={430} height={48} rx={24} style={{ fill: entropy }} />
+        <text x={645} y={309} textAnchor="middle" style={{ fill: '#FFFFFF', fontSize: 26, fontWeight: 800, fontFamily: mono }}>α = {alpha.toFixed(3).replace('.', ',')}</text>
+      </g>
+      <circle cx={tx} cy={ty} r={13} style={{ fill: entropy, stroke: panel, strokeWidth: 4 }} />
+    </svg>
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: 24, marginTop: 22, marginBottom: 10 }}>
+      <span style={{ ...label, color: ink, fontSize: 22 }}>Un vrai entraînement, en accéléré</span>
+      <span style={{ fontFamily: mono, fontSize: 26, fontWeight: 700, color: actor }}>{n(step)} pas</span>
+      <span style={{ fontSize: 26, color: muted }}>{phase}</span>
+    </div>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 40 }}>
+      <MiniChart title="Réussite" series={RUN_SUCCESS} u={u} color={critic} lo={0} hi={100} ticks={[0, 50, 100]} fmtTick={(v) => `${Math.round(v)} %`} />
+      <MiniChart title="α" series={RUN_ALPHA} u={u} color={entropy} lo={0.02} hi={1.2} log ticks={[0.03, 0.1, 1]} fmtTick={(v) => v.toFixed(v < 0.1 ? 2 : 1).replace('.', ',')} />
+      <MiniChart title="Entropie" series={RUN_ENTROPY} u={u} color={actorHex} lo={-3} hi={2} ticks={[-3, -2, 0, 2]} fmtTick={(v) => fmt(v)} target={{ v: -2, label: 'cible' }} />
+    </div>
+    <div style={{ fontSize: 21, color: muted, marginTop: 10, fontFamily: mono }}>Courbes mesurées sur notre propre SAC : robot 2D qui rejoint une cible, 2 actions continues (vitesse, rotation).</div>
+  </Frame>;
+};
 
 // =====================================================================
 // 7. Les réglages
 // =====================================================================
 
-function Knob({ value, name, role, fresh }: { value: string; name: string; role: string; fresh?: boolean }) {
-  return <div style={{ background: panel, border: `2px solid ${fresh ? entropy : rule}`, borderRadius: 'var(--osd-radius)', padding: '24px 30px', display: 'flex', flexDirection: 'column', gap: 6, position: 'relative' }}>
+function Knob({ value, name, role, effect, fresh }: { value: string; name: string; role: string; effect: string; fresh?: boolean }) {
+  return <div style={{ background: panel, border: `2px solid ${fresh ? entropy : rule}`, borderRadius: 'var(--osd-radius)', padding: '22px 28px', display: 'flex', flexDirection: 'column', gap: 6, position: 'relative' }}>
     {fresh && <span style={{ position: 'absolute', top: 20, right: 24, fontFamily: mono, fontSize: 20, letterSpacing: 2, color: '#FFFFFF', background: entropy, borderRadius: 999, padding: '4px 14px' }}>NOUVEAU</span>}
-    <span style={{ fontFamily: mono, fontSize: 58, fontWeight: 700, color: fresh ? entropy : actor, lineHeight: 1.1 }}>{value}</span>
-    <span style={{ fontSize: 33, fontWeight: 800 }}>{name}</span>
-    <span style={{ fontSize: 27, color: muted }}>{role}</span>
+    <span style={{ fontFamily: mono, fontSize: 54, fontWeight: 700, color: fresh ? entropy : actor, lineHeight: 1.1 }}>{value}</span>
+    <span style={{ fontSize: 32, fontWeight: 800 }}>{name}</span>
+    <span style={{ fontSize: 26, color: muted }}>{role}</span>
+    <span style={{ fontSize: 24, color: ink, marginTop: 8, paddingTop: 10, borderTop: `2px solid ${soft}` }}>↑ {effect}</span>
   </div>;
 }
 
 const Settings: Page = () => <Frame kicker="Hyperparamètres" speaker={MATHIS} title="Six réglages, valeurs par défaut">
-  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 28 }}>
-    <Knob value="0,99" name="γ · actualisation" role="poids des récompenses futures" />
-    <Knob value="3·10⁻⁴" name="Taux d’apprentissage" role="taille des pas de correction" />
-    <Knob value="10⁶" name="Replay buffer" role="taille du carnet de conduite" />
-    <Knob value="256" name="Batch" role="moments révisés à chaque pas" />
-    <Knob value="0,005" name="τ · réseaux cibles" role="ils suivent les critiques à 0,5 %" />
-    <Knob value="−2" name="Entropie cible" role="−(nb d’actions) : volant + pédale" fresh />
+  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 26 }}>
+    <Knob value="0,99" name="γ · actualisation" role="poids des récompenses futures" effect="vise plus loin, apprend plus lentement" />
+    <Knob value="3·10⁻⁴" name="Taux d’apprentissage" role="taille des pas de gradient" effect="plus rapide, mais instable" />
+    <Knob value="10⁶" name="Replay buffer" role="moments gardés en mémoire" effect="données plus variées, plus de mémoire" />
+    <Knob value="256" name="Batch" role="moments révisés à chaque pas" effect="gradient plus stable, plus de calcul" />
+    <Knob value="0,005" name="τ · réseaux cibles" role="vitesse de suivi des critiques" effect="cibles qui bougent vite, moins stable" />
+    <Knob value="−2" name="Entropie cible" role="−(nb d’actions) : volant + pédale" effect="plus d’exploration (α suit seul)" fresh />
   </div>
-  <Punchline color={entropy}>α s’ajuste seul pour tenir l’entropie cible</Punchline>
+  <Punchline color={actor}>Les valeurs de l’article marchent dans la plupart des cas</Punchline>
 </Frame>;
 
 // =====================================================================
@@ -608,7 +756,7 @@ function DemoLanes({ active, onReplay }: { active: boolean; onReplay: () => void
   return <>
     <div style={{ display: 'flex', alignItems: 'center', gap: 24, marginTop: -10, marginBottom: 20 }}>
       <span style={{ fontSize: 30, fontWeight: 800, color: obstacle ? env : muted }}>{obstacle ? '⚠️ Une voiture en panne à la corde du virage' : `Route libre… une voiture tombe en panne dans ${Math.max(0, Math.ceil(OBSTACLE_AT - t))} s`}</span>
-      <button onClick={onReplay} style={{ marginLeft: 'auto', font: 'inherit', fontSize: 24, color: ink, border: `2px solid ${rule}`, background: panel, borderRadius: 12, padding: '8px 18px', cursor: 'pointer' }}>↺ Rejouer</button>
+      <div role="button" tabIndex={0} onClick={onReplay} style={{ marginLeft: 'auto', font: 'inherit', fontSize: 24, color: ink, border: `2px solid ${rule}`, background: panel, borderRadius: 12, padding: '8px 18px', cursor: 'pointer' }}>↺ Rejouer</div>
     </div>
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 50 }}>
       <Lane name="DQN (5 crans)" color={muted} driver={dqn} seed={21} t={t} active={active} />
@@ -717,7 +865,7 @@ export const meta: SlideMeta = {
 };
 
 // Notes orales, une par page. Total visé : environ 8 min 30.
-// Hugo : pages 1 à 4 (~3 min) · Mathis : pages 5 à 7 (~2 min 45) · Quentin : pages 8 à 10 (~2 min 45).
+// Hugo : pages 1 à 4 (~3 min) · Mathis : pages 5 à 7 (~3 min 15) · Quentin : pages 8 à 10 (~2 min 45).
 export const notes: (string | undefined)[] = [
   `Pour présenter Soft Actor-Critic, ou SAC, on va prendre un exemple : une voiture qui apprend à prendre un virage.
 L’objectif est de réussir le virage, tout en continuant à essayer différentes façons de le prendre.
@@ -738,23 +886,25 @@ L'acteur, c'est l'élève qui tient le volant : un réseau de neurones qui sort 
 Le critique, c'est le moniteur : un autre réseau qui note ce que fait l'élève. C'est notre fonction Q.
 L'élève progresse : π1 sort de la route, π2 est mieux, π3 prend le virage à la corde. Et là, il ne change plus jamais de trajectoire. C'est un optimum local : il ne connaît qu'une seule façon de prendre le virage. C'est ce que font certains algos.
 Le jour où quelque chose change sur la route, il n'a pas de plan B. Mathis va vous montrer comment SAC règle ça.`,
+  `MATHIS · ≈ 1:05
+SAC change ce que l'agent cherche à maximiser : la récompense, plus α fois l'entropie.
+L'entropie mesure à quel point les actions de l'acteur sont variées.
+Concrètement, dans chaque situation, l'acteur ne sort pas une action mais deux courbes en cloche, des gaussiennes : une pour le volant, une pour la pédale. Chacune a une moyenne μ, l'action visée, et un écart-type σ, la marge de variation. On tire l'action dans ces courbes. Plus σ est grand, plus l'entropie est forte.
+Regardez ce que change α. α presque nul : σ minuscule, l'acteur fait toujours la même chose, une seule trajectoire, c'est le RL classique. α trop grand : σ énorme, il conduit presque au hasard et sort de la route. α bien dosé : il varie, mais autour de ce qui marche.
+La jauge en bas montre l'entropie obtenue. SAC vise une entropie cible, ici −2, et règle α automatiquement pour l'atteindre.`,
+  `MATHIS · ≈ 1:10
+Comment ça apprend ? C'est une boucle, et le petit point orange en fait le tour.
+L'acteur choisit une action a. L'environnement, c'est-à-dire la piste, renvoie une récompense r et le nouvel état s′. On range tout ça dans le replay buffer, qui peut garder un million de moments. Comme pour le DQN, on y tire 256 moments au hasard, ce qui permet de réutiliser chaque essai : c'est off-policy.
+Les deux critiques notent ces moments, et on garde toujours la note la plus basse pour éviter que l'acteur exploite une erreur trop optimiste. Puis l'acteur se corrige dans la direction que les critiques lui indiquent : c'est le gradient.
+En bas, ce sont les vraies courbes d'un SAC qu'on a entraîné nous-mêmes sur un petit robot 2D, avec lui aussi deux actions continues. Au début, 5 000 pas au hasard pour remplir le carnet. Puis α chute de 1 à 0,04 : l'acteur arrête de conduire au hasard. L'entropie descend et se stabilise autour de la cible −2. Et la réussite monte jusqu'à plus de 90 %.`,
   `MATHIS · ≈ 1:00
-L'idée de SAC, c'est de changer ce que le moniteur récompense. Si l'élève prend toujours exactement la même trajectoire, le moniteur dit « bof ». S'il prend des trajectoires variées tout en restant sur la route, il dit « mieux ».
-Concrètement, l'objectif devient la récompense plus α fois l'entropie. L'entropie mesure à quel point l'agent varie ses actions.
-Du coup, l'acteur ne sort plus un seul angle de volant, mais une zone : une gaussienne, avec une moyenne μ et un écart-type σ. À chaque instant, il tire son coup de volant dans cette zone.
-C'est ce qu'on voit à droite : des trajectoires toutes différentes, mais qui restent sur la route. Il explore autour de ce qui marche, pas n'importe où comme ε-greedy.`,
-  `MATHIS · ≈ 1:00
-Comment ça apprend concrètement ? C'est une boucle.
-L'acteur conduit. Tout ce qui se passe est noté dans un carnet, le replay buffer, qui garde jusqu'à un million de moments. Comme dans le DQN, on y pioche 256 moments au hasard pour apprendre : chaque essai sert plusieurs fois, c'est ce qu'on appelle off-policy.
-Avec ces moments, on entraîne deux critiques, deux moniteurs. On garde toujours la note la plus basse : un critique se trompe parfois vers le haut, et l'acteur foncerait sur ces erreurs.
-La cible des critiques, en bas, c'est l'équation de Bellman du cours : récompense plus γ fois la valeur de la suite. Deux différences : le min des deux critiques, et le bonus d'entropie, moins α log π.
-Enfin, α est un thermostat : si l'acteur devient trop sûr de lui, α monte et l'oblige à varier ; s'il s'éparpille, α baisse.`,
-  `MATHIS · ≈ 0:45
-Côté hyperparamètres, on garde presque toujours les valeurs de l'article, et elles marchent bien.
-γ à 0,99 : le poids du futur, comme en Q-learning. Un taux d'apprentissage de 3 fois 10 puissance moins 4. Un replay buffer d'un million de moments et des batchs de 256.
-τ à 0,005 : les réseaux cibles suivent les critiques doucement, au lieu d'être recopiés tous les C pas comme dans le DQN.
-Le seul vraiment nouveau, c'est l'entropie cible : par défaut, moins le nombre de dimensions de l'action. Ici, le volant et la pédale, donc moins 2. α s'ajuste tout seul pour tenir cette cible. Dans la première version de SAC, α était fixé à la main et c'était très sensible : c'est pour ça qu'on l'apprend maintenant.
-Quentin va vous montrer ce que ça change en pratique.`,
+Côté hyperparamètres, on garde presque toujours les valeurs de l'article : elles marchent sur la plupart des problèmes. Sous chaque réglage, la flèche indique ce qui se passe si on l'augmente.
+γ, le facteur d'actualisation, à 0,99 : c'est le même que dans le Q-learning du cours. Il dit combien les récompenses futures comptent. Proche de 1, l'agent pense à long terme, mais apprend plus lentement.
+Le taux d'apprentissage, 3 fois 10 puissance moins 4 : la taille des pas de gradient pour les réseaux. Trop grand, l'apprentissage devient instable ; trop petit, il est très lent.
+Le replay buffer garde un million de moments, et à chaque pas on en révise un batch de 256. Plus de mémoire donne des données plus variées ; un plus gros batch donne un gradient plus stable, mais coûte plus de calcul.
+τ, à 0,005, concerne les réseaux cibles. Les critiques apprennent à viser une cible qu'ils calculent avec des critiques : si on utilisait ceux qu'on est en train d'entraîner, la cible bougerait à chaque pas. On utilise donc des copies lentes, qu'on rapproche de 0,5 % des vrais critiques à chaque pas. Le DQN du cours fait la même chose, mais en recopiant d'un coup tous les C pas.
+Enfin, le seul vraiment nouveau : l'entropie cible, qui vaut moins le nombre d'actions, ici −2 pour le volant et la pédale. α s'ajuste tout seul pour la tenir. Dans la première version de SAC, α était fixé à la main et c'était très sensible : c'est pour ça qu'on l'apprend maintenant.
+Quentin va vous montrer ce que tout ça change en pratique.`,
   `QUENTIN · ≈ 1:00
 Petite démo. Trois voitures font le virage en boucle : à gauche le DQN avec son volant à 5 crans, au milieu l'acteur déterministe qui a appris une seule trajectoire, à droite SAC. En dessous, le pourcentage de voitures qui arrivent au bout.
 Pour l'instant, la route est libre : tout le monde arrive au bout, même si le DQN zigzague avec son volant à 5 crans.
