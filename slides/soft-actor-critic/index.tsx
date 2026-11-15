@@ -39,7 +39,7 @@ function Frame({ section, title, takeaway, children }: { section: string; title?
   </section>;
 }
 
-const Cover: Page = () => <Frame section="Apprentissage par renforcement · Robotique">
+const Cover: Page = () => <Frame section="Apprentissage par renforcement">
   <div style={{ display: 'grid', gridTemplateColumns: '1.25fr 1fr', gap: 100, alignItems: 'center', height: '100%' }}>
     <div>
       <div aria-hidden="true" style={{ fontSize: 240, fontWeight: 700, letterSpacing: -16, lineHeight: 1 }}>SAC<span style={{ color: accent }}>.</span></div>
