@@ -346,7 +346,7 @@ const Cover: Page = () => {
   const { live } = useRuns(t, sac, 1.3, Infinity, 5);
   return <section style={{ width: '100%', height: '100%', position: 'relative', boxSizing: 'border-box', background: 'var(--osd-bg)', color: text, fontFamily: 'var(--osd-font-body)', padding: '0 140px', display: 'grid', gridTemplateColumns: '1fr 780px', gap: 70, alignItems: 'center' }}>
     <div>
-      <div style={{ ...label, color: actor }}>IA & apprentissage par renforcement</div>
+      <div style={{ ...label, color: actor }}>IA & apprentissage par renforcement<br /><span style={{ color: '#444450' }}>Par Berkeley en 2018</span></div>
       <h1 style={{ margin: '28px 0 24px', fontFamily: 'var(--osd-font-display)', fontSize: 'var(--osd-size-hero)', lineHeight: 0.98, letterSpacing: -5, fontWeight: 800 }}>Soft<br />Actor&#8209;Critic</h1>
       <p style={{ margin: 0, fontSize: 42, color: muted, lineHeight: 1.3 }}>Apprendre à prendre un virage,<br /><span style={{ color: entropy }}>sans toujours le prendre pareil.</span></p>
       <div style={{ marginTop: 50 }}>
@@ -719,59 +719,51 @@ export const meta: SlideMeta = {
 // Notes orales, une par page. Total visé : environ 8 min 30.
 // Hugo : pages 1 à 4 (~3 min) · Mathis : pages 5 à 7 (~2 min 45) · Quentin : pages 8 à 10 (~2 min 45).
 export const notes: (string | undefined)[] = [
-  `HUGO · ≈ 0:30
-On va vous parler d'une voiture qui apprend à prendre un virage toute seule. L'algorithme derrière, c'est SAC, Soft Actor-Critic, publié par Berkeley en 2018. C'est un des algorithmes d'apprentissage par renforcement les plus utilisés en robotique.
-Je pose le problème, Mathis explique la solution, et Quentin vous montre la preuve et quand l'utiliser.`,
-
-  `HUGO · ≈ 0:45
-Au début, notre voiture n'a jamais conduit. Elle tourne le volant un peu au hasard, et elle finit dans l'herbe.
-Avec le vocabulaire du cours, c'est un MDP. L'état, c'est ce que la voiture perçoit : sa position, sa vitesse, la distance aux bords. La récompense : positive quand elle avance, négative quand elle sort de la route.
-Et l'action, c'est le point important : l'angle du volant et l'appui sur la pédale. Deux nombres réels, donc une infinité d'actions possibles. On dit que l'espace d'actions est continu.`,
-
-  `HUGO · ≈ 0:55
-Avec ce qu'on a vu en cours, on prendrait un DQN. Mais le DQN a besoin d'une liste finie d'actions : il calcule une valeur Q pour chacune et prend la plus grande, l'argmax.
-Donc on découpe le volant en 5 crans. Résultat, à droite : la voiture zigzague, parce qu'elle ne peut jamais tourner « juste ce qu'il faut ».
-On pourrait découper plus fin, mais 100 crans fois 100 positions de pédale, ça fait 10 000 sorties. Et pour un bras robot à 7 moteurs, 100 puissance 7 : impossible.
-Deuxième souci : pour explorer, le DQN utilise ε-greedy, c'est-à-dire de temps en temps un coup de volant complètement au hasard. Parfois, ça finit dans le décor.`,
-
-  `HUGO · ≈ 0:50
-La solution classique, c'est l'acteur-critique. C'est comme à l'auto-école.
-L'acteur, c'est l'élève qui tient le volant : un réseau de neurones qui sort directement l'angle du volant, sans passer par une liste.
+  `Pour présenter Soft Actor-Critic, ou SAC, on va prendre un exemple : une voiture qui apprend à prendre un virage.
+L’objectif est de réussir le virage, tout en continuant à essayer différentes façons de le prendre.
+Je vais commencer par expliquer le problème. Mathis présentera ensuite la solution SAC, puis Quentin terminera avec une illustration et des applications réelles.`,
+  `Au départ, notre voiture ne sait pas conduire. Elle tourne le volant un peu au hasard, et elle finit dans l'herbe.
+Pour apprendre, elle reçoit trois types d’informations.
+L’état décrit la situation actuelle : sa position, sa vitesse et sa distance aux bords de la route.
+L’action correspond à ce qu’elle commande : l’angle du volant et l’appui sur l’accélérateur.
+Enfin, la récompense lui indique si elle progresse : positive lorsqu’elle avance, négative lorsqu’elle sort de la route.
+Le point important, c’est que le volant et l’accélérateur peuvent prendre des valeurs continues. Il existe donc une infinité de combinaisons possibles.`,
+  `Avec DQN, le réseau attribue une note à chaque action d’une liste prédéfinie. Cette note estime ce que l’action peut rapporter à long terme. Il choisit généralement celle qui a la meilleure note.
+Dans notre exemple, on limite donc le volant à cinq positions. Mais si la bonne commande est de tourner de 12,4 degrés, elle n’est pas disponible exactement. Cela peut rendre la conduite moins précise, comme l’illustre la voiture à droite.
+On pourrait ajouter davantage de positions. Mais avec cent positions de volant et cent positions d’accélérateur, on obtient déjà dix mille combinaisons à évaluer.
+Avec sept moteurs ayant chacun cent commandes possibles, on arrive à cent puissance sept : le nombre de combinaisons devient énorme.
+Enfin, DQN explore généralement avec epsilon-greedy : de temps en temps, il choisit une action au hasard, sans favoriser celles qu’il estime intéressantes.`,
+  `La solution classique, c'est l'acteur-critique. C'est comme à l'auto-école.
+L'acteur, c'est l'élève qui tient le volant : un réseau de neurones qui sort directement l'angle du volant.
 Le critique, c'est le moniteur : un autre réseau qui note ce que fait l'élève. C'est notre fonction Q.
-L'élève progresse : π1 sort de la route, π2 est mieux, π3 prend le virage à la corde. Et là, il ne change plus jamais de trajectoire. C'est un optimum local : il ne connaît qu'une seule façon de prendre le virage. C'est ce que font des algos comme DDPG.
+L'élève progresse : π1 sort de la route, π2 est mieux, π3 prend le virage à la corde. Et là, il ne change plus jamais de trajectoire. C'est un optimum local : il ne connaît qu'une seule façon de prendre le virage. C'est ce que font certains algos.
 Le jour où quelque chose change sur la route, il n'a pas de plan B. Mathis va vous montrer comment SAC règle ça.`,
-
   `MATHIS · ≈ 1:00
 L'idée de SAC, c'est de changer ce que le moniteur récompense. Si l'élève prend toujours exactement la même trajectoire, le moniteur dit « bof ». S'il prend des trajectoires variées tout en restant sur la route, il dit « mieux ».
 Concrètement, l'objectif devient la récompense plus α fois l'entropie. L'entropie mesure à quel point l'agent varie ses actions.
 Du coup, l'acteur ne sort plus un seul angle de volant, mais une zone : une gaussienne, avec une moyenne μ et un écart-type σ. À chaque instant, il tire son coup de volant dans cette zone.
 C'est ce qu'on voit à droite : des trajectoires toutes différentes, mais qui restent sur la route. Il explore autour de ce qui marche, pas n'importe où comme ε-greedy.`,
-
   `MATHIS · ≈ 1:00
 Comment ça apprend concrètement ? C'est une boucle.
 L'acteur conduit. Tout ce qui se passe est noté dans un carnet, le replay buffer, qui garde jusqu'à un million de moments. Comme dans le DQN, on y pioche 256 moments au hasard pour apprendre : chaque essai sert plusieurs fois, c'est ce qu'on appelle off-policy.
 Avec ces moments, on entraîne deux critiques, deux moniteurs. On garde toujours la note la plus basse : un critique se trompe parfois vers le haut, et l'acteur foncerait sur ces erreurs.
 La cible des critiques, en bas, c'est l'équation de Bellman du cours : récompense plus γ fois la valeur de la suite. Deux différences : le min des deux critiques, et le bonus d'entropie, moins α log π.
 Enfin, α est un thermostat : si l'acteur devient trop sûr de lui, α monte et l'oblige à varier ; s'il s'éparpille, α baisse.`,
-
   `MATHIS · ≈ 0:45
 Côté hyperparamètres, on garde presque toujours les valeurs de l'article, et elles marchent bien.
 γ à 0,99 : le poids du futur, comme en Q-learning. Un taux d'apprentissage de 3 fois 10 puissance moins 4. Un replay buffer d'un million de moments et des batchs de 256.
 τ à 0,005 : les réseaux cibles suivent les critiques doucement, au lieu d'être recopiés tous les C pas comme dans le DQN.
 Le seul vraiment nouveau, c'est l'entropie cible : par défaut, moins le nombre de dimensions de l'action. Ici, le volant et la pédale, donc moins 2. α s'ajuste tout seul pour tenir cette cible. Dans la première version de SAC, α était fixé à la main et c'était très sensible : c'est pour ça qu'on l'apprend maintenant.
 Quentin va vous montrer ce que ça change en pratique.`,
-
   `QUENTIN · ≈ 1:00
 Petite démo. Trois voitures font le virage en boucle : à gauche le DQN avec son volant à 5 crans, au milieu l'acteur déterministe qui a appris une seule trajectoire, à droite SAC. En dessous, le pourcentage de voitures qui arrivent au bout.
 Pour l'instant, la route est libre : tout le monde arrive au bout, même si le DQN zigzague avec son volant à 5 crans.
 Et là, une voiture tombe en panne à la corde du virage. L'acteur déterministe ne connaît que cette trajectoire : il la percute à chaque fois. Le DQN, avec ses zigzags, ne sait pas l'éviter finement non plus. SAC, lui, connaît d'autres trajectoires : il passe à côté.
 C'est tout l'intérêt de l'entropie : garder plusieurs solutions sous le coude.
 (La démo est une simulation illustrative : les trois comportements sont programmés pour montrer ce que fait typiquement chaque méthode, pas entraînés en direct.)`,
-
   `QUENTIN · ≈ 0:45
 Ce n'est pas qu'une histoire de simulation. Berkeley et Google ont entraîné un robot à quatre pattes, Minitaur, avec SAC. Il a appris à marcher en deux heures, directement sur le vrai robot.
 Il n'a été entraîné que sur sol plat. Pourtant, il marche ensuite sur des pentes et passe des obstacles qu'il n'a jamais vus, sans réentraînement. Les auteurs l'expliquent par l'entropie : comme notre voiture, il a appris plusieurs façons de faire.`,
-
   `QUENTIN · ≈ 0:45
 Alors, quand utiliser SAC ? Quand les actions sont continues, comme un robot, une voiture ou une installation d'énergie. Quand chaque essai coûte cher, parce qu'il réutilise ses données. Et quand le monde peut changer.
 Par contre, avec quelques actions discrètes, un DQN suffit. Avec un simulateur très rapide qu'on lance en parallèle, PPO va souvent plus vite. Et sur un vrai robot, explorer veut dire tester des gestes risqués : il faut des garde-fous.
