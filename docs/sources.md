@@ -1,0 +1,31 @@
+# Sources commentées
+
+## Ordre de lecture conseillé
+
+1. [Berkeley — Soft Actor Critic: Deep Reinforcement Learning with Real-World Robots](https://bair.berkeley.edu/blog/2018/12/14/sac/), 14 décembre 2018. Billet des auteurs : intuition et exemples de manipulation et de locomotion. Les vidéos peuvent compléter l’oral, mais aucun média tiers n’est intégré à ce dépôt.
+2. [OpenAI Spinning Up — Soft Actor-Critic](https://spinningup.openai.com/en/latest/algorithms/sac.html). Référence pédagogique pour l’objectif, la politique stochastique, les deux critiques, les réseaux cibles et le pseudo-code. La page présente la version sans réseau V, avec alpha fixé dans son implémentation.
+3. [Stable-Baselines3 — SAC](https://stable-baselines3.readthedocs.io/en/master/modules/sac.html). Référence pratique pour les paramètres, la température automatique et les espaces d’actions pris en charge. Les valeurs de la slide 6 correspondent aux défauts de la documentation consultée ; la page `master` peut évoluer.
+4. [Haarnoja, Zhou, Abbeel et Levine — Soft Actor-Critic: Off-Policy Maximum Entropy Deep Reinforcement Learning with a Stochastic Actor](https://proceedings.mlr.press/v80/haarnoja18b.html). ICML 2018, PMLR 80, pages 1861–1870. Article fondateur.
+5. [Haarnoja et al. — Soft Actor-Critic Algorithms and Applications](https://arxiv.org/abs/1812.05905). Prépublication de décembre 2018, version révisée en janvier 2019. Développements de l’algorithme, ajustement automatique de la température et expériences robotiques.
+
+## Correspondance avec les slides
+
+| Slide | Appui principal |
+| --- | --- |
+| 1 — Définition et origine | Article ICML 2018 |
+| 2 — Bras robotique | Exemple pédagogique original ; contexte robotique inspiré de Berkeley |
+| 3 — Récompense et entropie | Berkeley et Spinning Up |
+| 4 — Acteur et critiques | Spinning Up, version moderne |
+| 5 — Boucle d’apprentissage | Spinning Up ; Algorithms and Applications pour alpha automatique |
+| 6 — Hyperparamètres | Stable-Baselines3, section Parameters |
+| 7 — Avantages et limites | Articles scientifiques ; conséquences pratiques de l’architecture |
+| 8 — Applications | Berkeley et Algorithms and Applications ; limites des espaces d’actions dans Stable-Baselines3 |
+| 9 — Bibliographie | Liens directs vers les cinq sources |
+
+## Précautions d’interprétation
+
+- Les résultats favorables des articles sont des résultats expérimentaux sur des tâches et comparaisons précises, pas une supériorité universelle.
+- La version initiale et la version moderne n’ont pas exactement les mêmes réseaux. Ce support décrit la seconde, avec deux critiques, sans réseau V séparé et avec alpha automatique.
+- « Efficacité en données » et « rapidité en temps réel » sont deux mesures différentes.
+- Le bras robotique de la slide 2 et l’exemple Q1 = 12, Q2 = 8 des notes sont illustratifs.
+- Aucun benchmark ni entraînement n’a été réalisé pour ce support.

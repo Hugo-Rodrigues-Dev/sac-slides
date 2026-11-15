@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#10191d">
+  <meta name="description" content="Comprendre Soft Actor-Critic en 9 minutes : principe, entropie, architecture, hyperparamètres et robotique.">
+  <title>Soft Actor-Critic — Apprendre à agir</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#deck">Aller aux slides</a>
+  <main id="deck" aria-label="Présentation Soft Actor-Critic" tabindex="-1">
+    <section class="slide cover active" id="slide-1" aria-labelledby="title-1" data-title="Soft Actor-Critic">
+      <div class="eyebrow">Apprentissage par renforcement · Contrôle continu</div>
+      <div class="cover-layout">
+        <div>
+          <p class="acronym" aria-hidden="true">SAC<span>.</span></p>
+          <h1 id="title-1">Soft Actor-Critic</h1>
+          <p class="cover-subtitle">Apprendre à agir.<br>Continuer à explorer.</p>
+        </div>
+        <div class="cover-side">
+          <span class="mono accent">L’idée centrale</span>
+          <p>Récompense<br><span class="operator">+</span> diversité<br>des actions</p>
+          <span class="cover-reference">Haarnoja et al. · 2018</span>
+        </div>
+      </div>
+      <p class="bottom-line">Une politique qui cherche la performance tout en gardant plusieurs possibilités.</p>
+    </section>
+
+    <section class="slide" id="slide-2" aria-labelledby="title-2" data-title="Un bras robotique">
+      <div class="eyebrow">01 / Le problème</div>
+      <h2 id="title-2">Un bras robotique<br>doit atteindre une cible</h2>
+      <div class="robot-example">
+        <dl class="signal-list">
+          <div><dt>État <span>s</span></dt><dd>Angles, vitesses des articulations<br>et position de la cible</dd></div>
+          <div><dt>Action <span>a</span></dt><dd>Couples appliqués aux moteurs<br><strong>Des valeurs continues</strong></dd></div>
+          <div><dt>Récompense <span>r</span></dt><dd>Se rapprocher de la cible,<br>limiter l’effort</dd></div>
+        </dl>
+        <div class="example-question"><span class="mono accent">Le défi</span><p>Répéter un mouvement<br>qui fonctionne…<br><em>ou essayer mieux ?</em></p></div>
+      </div>
+      <p class="bottom-line">Une politique π transforme l’état observé en un choix d’action.</p>
+    </section>
+
+    <section class="slide" id="slide-3" aria-labelledby="title-3" data-title="Récompense et entropie">
+      <div class="eyebrow">02 / L’idée de SAC</div>
+      <h2 id="title-3">Récompense <span class="accent">+ entropie</span></h2>
+      <p class="lead">Bien agir, tout en conservant de la diversité.</p>
+      <div class="objective" aria-label="Objectif : récompenses futures plus alpha fois entropie">
+        <span>Récompenses futures</span><b>+</b><span><i>α</i> × Entropie</span>
+      </div>
+      <div class="two-columns entropy-columns">
+        <div><h3>Faible entropie</h3><p>Dans un même état,<br>des actions très similaires.</p></div>
+        <div><h3>Forte entropie</h3><p>Dans un même état,<br>des actions plus variées.</p></div>
+      </div>
+      <p class="bottom-line"><strong>α règle le compromis.</strong> Plus il est élevé, plus la diversité pèse dans l’objectif.</p>
+    </section>
+
+    <section class="slide" id="slide-4" aria-labelledby="title-4" data-title="Acteur et critiques">
+      <div class="eyebrow">03 / L’architecture</div>
+      <h2 id="title-4">Un acteur, deux critiques</h2>
+      <div class="architecture" role="group" aria-label="L’état entre dans l’acteur, qui propose une action évaluée par deux critiques">
+        <div class="flow-state"><span class="mono">Entrée</span><strong>État s</strong></div>
+        <span class="arrow" aria-hidden="true">→</span>
+        <div class="flow-actor"><span class="mono accent">Acteur π</span><strong>Propose<br>une action a</strong><small>Politique stochastique</small></div>
+        <span class="arrow" aria-hidden="true">→</span>
+        <div class="flow-critics"><span class="mono warm">Critiques Q₁ et Q₂</span><strong>Évaluent<br>le couple (s, a)</strong><small>Valeur à long terme</small></div>
+      </div>
+      <div class="architecture-result"><span class="min-q">min(Q₁, Q₂)</span><p>Prendre l’estimation la plus basse<br>pour limiter la surestimation.</p></div>
+      <p class="bottom-line">L’acteur apprend à privilégier les actions bien évaluées, avec un bonus d’entropie.</p>
+    </section>
+
+    <section class="slide" id="slide-5" aria-labelledby="title-5" data-title="La boucle d’apprentissage">
+      <div class="eyebrow">04 / L’apprentissage</div>
+      <h2 id="title-5">Agir, mémoriser, réutiliser</h2>
+      <ol class="learning-steps">
+        <li><span>01</span><div><strong>Interagir</strong><p>Choisir une action et observer la transition (s, a, r, s′).</p></div></li>
+        <li><span>02</span><div><strong>Mémoriser</strong><p>Stocker l’expérience dans le <em>replay buffer</em>.</p></div></li>
+        <li><span>03</span><div><strong>Apprendre sur un lot tiré au hasard</strong><p>Mettre à jour les critiques, puis l’acteur et le coefficient α.</p></div></li>
+        <li><span>04</span><div><strong>Faire évoluer lentement les critiques cibles</strong><p>Stabiliser les valeurs utilisées pour apprendre.</p></div></li>
+      </ol>
+      <p class="bottom-line"><strong>Off-policy :</strong> les expériences des anciennes politiques servent encore à apprendre.</p>
+    </section>
+
+    <section class="slide" id="slide-6" aria-labelledby="title-6" data-title="Les hyperparamètres">
+      <div class="eyebrow">05 / Les réglages</div>
+      <h2 id="title-6">Les hyperparamètres essentiels</h2>
+      <table class="parameters">
+        <caption>Exemples : valeurs par défaut de Stable-Baselines3</caption>
+        <thead><tr><th scope="col">Paramètre</th><th scope="col">Rôle</th><th scope="col">Exemple</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">α et entropie cible</th><td>Poids de la diversité et cible de son ajustement</td><td>Auto</td></tr>
+          <tr><th scope="row">γ — actualisation</th><td>Importance des récompenses futures</td><td>0,99</td></tr>
+          <tr><th scope="row">Taux d’apprentissage</th><td>Amplitude des mises à jour</td><td>3 × 10⁻⁴</td></tr>
+          <tr><th scope="row">Taille du lot</th><td>Expériences par mise à jour</td><td>256</td></tr>
+          <tr><th scope="row">Capacité du buffer</th><td>Expériences conservées</td><td>10⁶</td></tr>
+          <tr><th scope="row">τ — mise à jour cible</th><td>Vitesse d’évolution des critiques cibles</td><td>0,005</td></tr>
+        </tbody>
+      </table>
+      <p class="bottom-line">L’ajustement automatique de α vise une entropie cible. Ces valeurs restent à adapter à la tâche.</p>
+    </section>
+
+    <section class="slide" id="slide-7" aria-labelledby="title-7" data-title="Avantages et limites">
+      <div class="eyebrow">06 / Le compromis pratique</div>
+      <h2 id="title-7">Pourquoi choisir SAC ?</h2>
+      <div class="two-columns tradeoffs">
+        <div><h3 class="accent">Avantages</h3><ul><li>Réutilise les expériences collectées</li><li>Encourage l’exploration via l’entropie</li><li>De bons résultats en contrôle continu</li></ul></div>
+        <div><h3 class="warm">Limites</h3><ul><li>Plusieurs réseaux à entraîner</li><li>Coût en mémoire et en calcul</li><li>Récompenses rares : difficulté persistante</li></ul></div>
+      </div>
+      <p class="comparison">Face à une méthode on-policy comme PPO,<br><strong>le buffer permet de réutiliser les données.</strong></p>
+      <p class="bottom-line">SAC reste sensible à la tâche et aux réglages : il n’est pas systématiquement le meilleur.</p>
+    </section>
+
+    <section class="slide" id="slide-8" aria-labelledby="title-8" data-title="Applications et bilan">
+      <div class="eyebrow">07 / Les applications</div>
+      <h2 id="title-8">Le contrôle continu,<br><span class="accent">notamment en robotique</span></h2>
+      <div class="application-row"><p><span class="mono">Manipulation</span><strong>Commander<br>un bras robotique</strong></p><p><span class="mono">Locomotion</span><strong>Faire marcher<br>un quadrupède</strong></p></div>
+      <p class="application-caveat">Version classique : actions continues. Des variantes existent pour le discret.</p>
+      <blockquote>Un acteur choisit, deux critiques évaluent.<br>La mémoire réutilise, l’entropie encourage l’exploration.</blockquote>
+    </section>
+
+    <section class="slide sources" id="slide-9" aria-labelledby="title-9" data-title="Sources">
+      <div class="eyebrow">Pour approfondir</div>
+      <h2 id="title-9">Sources & questions</h2>
+      <ol class="source-list">
+        <li><a href="https://proceedings.mlr.press/v80/haarnoja18b.html" target="_blank" rel="noopener noreferrer"><strong>Haarnoja et al. · ICML 2018 <span aria-hidden="true">↗</span></strong><span>Soft Actor-Critic — l’article fondateur</span></a></li>
+        <li><a href="https://arxiv.org/abs/1812.05905" target="_blank" rel="noopener noreferrer"><strong>Haarnoja et al. · 2018 / 2019 <span aria-hidden="true">↗</span></strong><span>Algorithms and Applications — notamment l’ajustement de α</span></a></li>
+        <li><a href="https://spinningup.openai.com/en/latest/algorithms/sac.html" target="_blank" rel="noopener noreferrer"><strong>OpenAI · Spinning Up <span aria-hidden="true">↗</span></strong><span>Équations, architecture et pseudo-code</span></a></li>
+        <li><a href="https://bair.berkeley.edu/blog/2018/12/14/sac/" target="_blank" rel="noopener noreferrer"><strong>Berkeley · BAIR <span aria-hidden="true">↗</span></strong><span>Explications des auteurs et exemples de robots réels</span></a></li>
+        <li><a href="https://stable-baselines3.readthedocs.io/en/master/modules/sac.html" target="_blank" rel="noopener noreferrer"><strong>Stable-Baselines3 <span aria-hidden="true">↗</span></strong><span>Implémentation et hyperparamètres</span></a></li>
+      </ol>
+    </section>
+  </main>
+
+  <footer class="controls" aria-label="Commandes de présentation">
+    <span class="deck-label">SAC <span>/</span> Contrôle continu</span>
+    <div class="nav-controls">
+      <button id="previous" type="button" aria-label="Slide précédente">←</button>
+      <span id="counter" aria-live="polite" aria-atomic="true">01 / 09</span>
+      <button id="next" type="button" aria-label="Slide suivante">→</button>
+      <span class="control-divider" aria-hidden="true"></span>
+      <button id="notes-toggle" type="button" aria-label="Afficher les notes orales" aria-controls="notes" aria-expanded="false">Notes <kbd>N</kbd></button>
+      <button id="fullscreen" type="button" aria-label="Basculer en plein écran">Plein écran <kbd>F</kbd></button>
+    </div>
+  </footer>
+  <div class="progress" aria-hidden="true"><div id="progress-fill"></div></div>
+  <aside id="notes" class="notes" aria-label="Notes orales" hidden>
+    <div class="notes-heading"><strong id="notes-title"></strong><button id="notes-close" type="button" aria-label="Fermer les notes">Fermer ×</button></div>
+    <p id="notes-content"></p>
+    <p class="notes-warning">Les notes sont visibles sur cet écran. Les masquer avant de projeter.</p>
+  </aside>
+  <noscript><style>body{overflow:auto}#deck{position:static;display:block}.slide,.slide.active{display:flex;position:relative;top:auto;left:auto;transform:none;margin:0 auto}.controls,.progress{display:none}</style><p class="no-script">JavaScript est désactivé : toutes les slides sont affichées à la suite.</p></noscript>
+</body>
+</html>
