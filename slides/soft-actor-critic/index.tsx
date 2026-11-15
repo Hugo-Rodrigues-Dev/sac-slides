@@ -348,24 +348,27 @@ function Quadruped({ x, y, angle }: { x: number; y: number; angle: number }) {
   </g>;
 }
 
+function FlatSketch() {
+  return <svg viewBox="0 0 700 200" width={700} height={200}>
+    <line x1={20} y1={176} x2={680} y2={176} style={{ stroke: '#121A22', strokeWidth: 4 }} />
+    <path d="M150,110 L250,110 M170,134 L240,134" style={{ stroke: actor, strokeWidth: 5, strokeLinecap: 'round', strokeOpacity: 0.35 }} />
+    <g transform="translate(380,124) scale(0.88)"><Quadruped x={0} y={0} angle={0} /></g>
+  </svg>;
+}
+
+function SlopeSketch() {
+  return <svg viewBox="0 0 700 200" width={700} height={200}>
+    <path d="M20,190 L680,100" style={{ stroke: '#121A22', strokeWidth: 4 }} />
+    <rect x={500} y={102} width={40} height={28} rx={4} transform="rotate(-7.8 520 125)" style={{ fill: muted }} />
+    <rect x={130} y={153} width={34} height={24} rx={4} transform="rotate(-7.8 147 174)" style={{ fill: muted }} />
+    <g transform="translate(340,94) rotate(-7.8) scale(0.88)"><Quadruped x={0} y={0} angle={0} /></g>
+  </svg>;
+}
+
 const Minitaur: Page = () => <Frame kicker="Cas réel · Berkeley & Google, 2018" speaker={QUENTIN} title="Minitaur apprend à marcher">
-  <div style={{ display: 'grid', gridTemplateColumns: '1fr 860px', gap: 80, alignItems: 'center' }}>
-    <div>
-      <div style={{ fontFamily: 'var(--osd-font-display)', fontSize: 220, fontWeight: 800, lineHeight: 1, color: actor, letterSpacing: -8 }}>2 h</div>
-      <div style={{ fontSize: 38, color: muted, marginTop: 10 }}>sur le vrai robot</div>
-    </div>
-    <svg viewBox="0 0 860 600" width={860} height={600}>
-      <rect x={0} y={0} width={860} height={280} rx={18} style={{ fill: panel, stroke: rule, strokeWidth: 2 }} />
-      <text x={28} y={50} style={{ fill: muted, fontSize: 28, fontFamily: mono, letterSpacing: 2 }}>ENTRAÎNÉ : SOL PLAT</text>
-      <line x1={40} y1={236} x2={820} y2={236} style={{ stroke: '#121A22', strokeWidth: 4 }} />
-      <Quadruped x={430} y={178} angle={0} />
-      <rect x={0} y={310} width={860} height={290} rx={18} style={{ fill: panel, stroke: entropy, strokeWidth: 3 }} />
-      <text x={28} y={360} style={{ fill: entropy, fontSize: 28, fontFamily: mono, letterSpacing: 2 }}>TESTÉ : JAMAIS VU ✓</text>
-      <path d="M40,570 L820,450" style={{ stroke: '#121A22', strokeWidth: 4 }} />
-      <rect x={612} y={458} width={42} height={30} rx={4} transform="rotate(-8.7 633 483)" style={{ fill: muted }} />
-      <rect x={140} y={528} width={34} height={26} rx={4} transform="rotate(-8.7 157 554)" style={{ fill: muted }} />
-      <Quadruped x={400} y={457} angle={-8.7} />
-    </svg>
+  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 40 }}>
+    <Result value="2 h" color={actor} title="Apprendre à marcher" detail="sur le vrai robot, sol plat" sketch={<FlatSketch />} />
+    <Result value="+0 h" color={entropy} title="Pente et obstacles" detail="jamais vus, sans réentraînement" sketch={<SlopeSketch />} />
   </div>
 </Frame>;
 
@@ -406,14 +409,21 @@ function StackSketch() {
 function ValveSketch() {
   return <svg viewBox="0 0 448 200" width={448} height={200}>
     <Arrowheads />
-    <rect x={20} y={90} width={74} height={48} rx={8} style={{ fill: muted }} />
-    <rect x={40} y={80} width={24} height={12} rx={3} style={{ fill: muted }} />
-    <circle cx={57} cy={114} r={14} style={{ fill: panel }} />
-    <line x1={96} y1={114} x2={180} y2={114} style={{ stroke: muted, strokeWidth: 3, strokeDasharray: '8 6' }} />
-    <circle cx={260} cy={120} r={58} style={{ fill: panel, stroke: entropy, strokeWidth: 6 }} />
-    <circle cx={306} cy={120} r={11} style={{ fill: entropy }} />
-    <path d="M206,170 A72,72 0 0 0 316,172" style={{ fill: 'none', stroke: entropy, strokeWidth: 4 }} markerEnd="url(#ah-ink)" />
-    <path d="M195,12 L222,66 M260,4 L260,58 M325,12 L298,66" style={{ fill: 'none', stroke: ink, strokeWidth: 12, strokeLinecap: 'round' }} />
+    {/* caméra et champ de vision */}
+    <polygon points="78,104 196,62 196,170 78,130" style={{ fill: muted, fillOpacity: 0.12 }} />
+    <rect x={14} y={96} width={64} height={42} rx={8} style={{ fill: muted }} />
+    <rect x={30} y={88} width={20} height={10} rx={3} style={{ fill: muted }} />
+    <circle cx={46} cy={117} r={12} style={{ fill: panel }} />
+    {/* vanne vue de dessus : volant à trois branches */}
+    <circle cx={280} cy={115} r={56} style={{ fill: soft }} />
+    <circle cx={280} cy={115} r={44} style={{ fill: 'none', stroke: entropy, strokeWidth: 8 }} />
+    <path d="M280,115 L280,71 M280,115 L242,137 M280,115 L318,137" style={{ stroke: entropy, strokeWidth: 7, strokeLinecap: 'round' }} />
+    <circle cx={280} cy={115} r={10} style={{ fill: entropy }} />
+    {/* sens de rotation */}
+    <path d="M344,138 A68,68 0 0 1 216,138" style={{ fill: 'none', stroke: ink, strokeWidth: 4 }} markerEnd="url(#ah-ink)" />
+    {/* main : paume et trois doigts posés sur le volant */}
+    <rect x={226} y={0} width={108} height={20} rx={9} style={{ fill: ink }} />
+    <path d="M242,18 L238,46 L252,72 M280,18 L280,64 M318,18 L322,46 L308,72" style={{ fill: 'none', stroke: ink, strokeWidth: 11, strokeLinecap: 'round', strokeLinejoin: 'round' }} />
   </svg>;
 }
 
