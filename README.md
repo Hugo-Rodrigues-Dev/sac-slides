@@ -1,35 +1,40 @@
-# Soft Actor-Critic
+# Soft Actor-Critic — open-slide
 
-Une présentation en français pour expliquer **SAC en 7 à 10 minutes**, avec un exemple de robotique. Design sombre, accents menthe et cuivre, aucune image décorative et aucune dépendance externe.
+Présentation en français de **SAC en 7 à 10 minutes**, réalisée avec le véritable framework **[open-slide](https://open-slide.dev/)**, React et TypeScript.
 
-**[Ouvrir les slides](https://hugo-rodrigues-dev.github.io/sac-slides/)**
+9 pages, style technique sombre inspiré de la robotique, accents menthe/cuivre et aucune image décorative. Les notes orales sont intégrées à la vue présentateur d’open-slide.
 
-## Présenter
+## Lancer le diaporama
 
-- `←` / `→` ou `Page précédente` / `Page suivante` : changer de slide.
-- `Espace` : avancer.
-- `Début` / `Fin` : première / dernière slide.
-- `F` : plein écran (si le navigateur le permet).
-- `N` : afficher ou masquer les notes orales. **Elles sont visibles sur l’écran projeté** : les consulter avant, ou garder [les notes Markdown](docs/notes-orales.md) sur un autre appareil.
-- `Échap` : fermer les notes ; le navigateur gère également la sortie du plein écran.
-
-Les boutons sont utilisables au clavier avec `Tab` et `Entrée`. Une slide peut être partagée directement, par exemple `#slide-3`.
-
-## Ouvrir en local
-
-Ouvrir simplement `index.html` dans un navigateur. Les slides fonctionnent hors ligne, sans installation ni CDN.
-
-Ou, pour servir les fichiers depuis ce dossier :
+Prérequis : **Node.js 24 LTS** et npm.
 
 ```sh
-python -m http.server 8000 --bind 127.0.0.1
+git clone https://github.com/Hugo-Rodrigues-Dev/sac-slides.git
+cd sac-slides
+npm install
+npm run dev
 ```
 
-Puis ouvrir <http://127.0.0.1:8000>.
+Ouvrir **<http://localhost:5173/s/soft-actor-critic>**. Si le port est occupé, utiliser l’adresse affichée dans le terminal.
 
-## Plan et durée indicative
+Le serveur propose le navigateur de présentations, l’éditeur, les vignettes et le rechargement à chaud. Utiliser **Present / Présenter** pour le diaporama plein écran. Les notes sont disponibles dans le tiroir de notes et dans la vue présentateur native avec chronomètre.
 
-| Slide | Sujet | Durée |
+La présentation n’est plus un fichier HTML autonome : **`npm run dev` lance bien open-slide**.
+
+## Modifier les slides
+
+Le fichier **[`slides/soft-actor-critic/index.tsx`](slides/soft-actor-critic/index.tsx)** contient :
+
+- `design` : couleurs, polices et échelle typographique ;
+- les neuf composants de pages, sur un canevas natif de 1920 × 1080 ;
+- `notes` : textes pour l’oral, indexés sur les pages ;
+- l’export par défaut : ordre des pages.
+
+Le framework gère la mise à l’échelle, la navigation, le mode présentation, l’inspecteur et les exports. Les recommandations pour modifier le support sont dans `AGENTS.md` et les compétences officielles sous `.agents/skills/`.
+
+## Plan — environ 8 min 40
+
+| Page | Sujet | Durée |
 | --- | --- | --- |
 | 1 | Soft Actor-Critic | 0:35 |
 | 2 | Exemple d’un bras robotique | 0:55 |
@@ -40,31 +45,27 @@ Puis ouvrir <http://127.0.0.1:8000>.
 | 7 | Avantages et limites | 1:00 |
 | 8 | Applications et bilan | 0:55 |
 | 9 | Sources | 0:15 |
-| **Total** | **Hors questions** | **8:40** |
 
-## Modifier
+Les exemples sont pédagogiques : aucun entraînement ou benchmark n’a été réalisé pour ce support.
 
-| Fichier | Contenu |
-| --- | --- |
-| `index.html` | Texte des slides et schémas en HTML |
-| `styles.css` | Couleurs, typographie et mise en page 16:9 |
-| `app.js` | Navigation, plein écran et notes intégrées |
-| `docs/notes-orales.md` | Notes pour préparer l’oral |
-| `docs/comprendre-sac.md` | Fiche de compréhension et questions possibles |
-| `docs/sources.md` | Bibliographie commentée et correspondance avec les slides |
+## Comprendre le sujet
 
-Si le nombre de slides change, modifier également le tableau `speakerNotes` dans `app.js`. Si les notes évoluent, reporter la modification dans `docs/notes-orales.md`.
+- [Fiche de compréhension et questions possibles](docs/comprendre-sac.md)
+- [Sources commentées](docs/sources.md)
+- Notes orales directement dans l’export `notes` de la présentation.
 
-Les exemples de bras robotique et les nombres illustratifs servent à expliquer le principe. Ce dépôt ne contient ni entraînement de robot, ni mesure de performance, ni courbe expérimentale.
+## Vérifier et compiler
 
-## Hébergement
+```sh
+npm run typecheck
+npm run build
+npm run preview
+```
 
-GitHub Pages sert directement la branche `main`, dossier `/` : pas de compilation, de service tiers ni de workflow nécessaire. Le fichier `.nojekyll` permet de servir les fichiers statiques tels quels.
+La compilation produit `dist/`. Le workflow GitHub Actions compile et déploie automatiquement la branche `main` sur **[GitHub Pages](https://hugo-rodrigues-dev.github.io/sac-slides/)**. Le chemin de base `/sac-slides/` est appliqué pendant ce déploiement ; le serveur local reste à la racine.
 
-## Références
-
-Voir [la bibliographie commentée](docs/sources.md). Le contenu décrit la version moderne courante de SAC avec deux critiques, sans réseau V séparé, et avec ajustement automatique du coefficient d’entropie.
+Pour une installation reproductible avec le fichier verrouillé, utiliser `npm ci` à la place de `npm install`.
 
 ## Licence
 
-Le code et les textes originaux de ce dépôt sont sous [licence MIT](LICENSE). Les publications et autres ressources citées conservent leurs droits respectifs.
+Code et textes originaux sous [licence MIT](LICENSE). Les ressources citées conservent leurs droits respectifs.

@@ -1,0 +1,24 @@
+{
+  "name": "sac-slides",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "open-slide dev",
+    "build": "open-slide build",
+    "preview": "open-slide preview",
+    "sync:skills": "open-slide sync:skills",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@open-slide/core": "2.3.2",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.5",
+    "typescript": "^7.0.2"
+  }
+}
