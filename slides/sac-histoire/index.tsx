@@ -474,11 +474,17 @@ const LocalOptimum: Page = () => {
 // 5. L'idée de SAC : α, entropie et sortie de l'acteur
 // =====================================================================
 
-// α est réglé au curseur (u de 0 à 1, échelle logarithmique). Ce qui change : l'écart-type σ
-// des deux gaussiennes que sort l'acteur (actions normalisées dans [−1, 1]).
-const alphaOf = (u: number) => 0.001 * 1000 ** u;
-const steerSigmaOf = (u: number) => 0.033 * (0.67 / 0.033) ** u;
-const pedalSigmaOf = (u: number) => 0.02 * (0.3 / 0.02) ** u;
+// α est réglé au curseur (u de 0 à 1, échelle logarithmique, α de 0,0025 à 1).
+// Lien α → σ : la politique idéale de SAC est π(a|s) ∝ exp(Q(s,a)/α). Si la note du critique
+// autour de la meilleure action est une parabole de courbure k, cette politique est une gaussienne
+// d'écart-type σ = √(α / k). On prend une courbure par action (actions normalisées dans [−1, 1]) :
+// la pédale est plus « pointue » que le volant (une seule bonne vitesse, plusieurs bonnes trajectoires).
+// Les courbures sont calées pour qu'au milieu du curseur (α = 0,05) l'entropie vaille la cible −2.
+const K_STEER = 2.2;
+const K_PEDAL = 18;
+const alphaOf = (u: number) => 0.0025 * 400 ** u;
+const steerSigmaOf = (u: number) => Math.sqrt(alphaOf(u) / K_STEER);
+const pedalSigmaOf = (u: number) => Math.sqrt(alphaOf(u) / K_PEDAL);
 const STEER_MU = 0.27, PEDAL_MU = 0.7;
 // Entropie d'une gaussienne (½ ln(2πe σ²)), additionnée sur les deux actions
 const gaussEntropy = (sigma: number) => 0.5 * Math.log(2 * Math.PI * Math.E * sigma * sigma);
@@ -575,7 +581,7 @@ const SacIdea: Page = () => {
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 28 }}>
-          <div style={{ fontSize: 30, fontWeight: 800, color: entropy, width: 190 }}>α = {alphaOf(uq) < 0.01 ? alphaOf(uq).toFixed(3).replace('.', ',') : alphaOf(uq).toFixed(2).replace('.', ',')}</div>
+          <div style={{ fontSize: 30, fontWeight: 800, color: entropy, width: 190 }}>α = {alphaOf(uq) < 0.1 ? alphaOf(uq).toFixed(3).replace('.', ',') : alphaOf(uq).toFixed(2).replace('.', ',')}</div>
           <Slider value={u} onChange={setU} width={500} color={entropy} left="α petit" right="α grand" />
         </div>
         <div style={{ fontSize: 28 }}><strong>Entropie {fmt(H)}</strong> <span style={{ color: muted }}>(cible −2)</span> · <strong style={{ color: vColor }}>{verdict}</strong></div>
@@ -910,7 +916,8 @@ Le jour où quelque chose change sur la route, il n'a pas de plan B. Mathis va v
 Hugo vient de montrer le problème : l'acteur ne connaît qu'une seule trajectoire. SAC change ce que le moniteur récompense. Toujours la même trajectoire ? « Bof. » Des trajectoires variées qui restent sur la route ? « Mieux ! »
 Concrètement, l'agent maximise la récompense, plus α fois l'entropie. L'entropie mesure à quel point ses actions sont variées.
 Pour pouvoir varier, l'acteur ne sort plus une action précise mais deux zones, deux courbes en cloche : une pour le volant, une pour la pédale. Chacune a une moyenne μ, l'action visée, et un écart-type σ, la marge de variation. À chaque instant, il tire son action dedans. Plus σ est grand, plus l'entropie est forte. Résultat, à droite : des trajectoires différentes, qui restent sur la route.
-α dose cette variété. [Faire glisser le curseur à gauche] Avec α tout petit, σ devient minuscule : une seule trajectoire, on retombe sur le problème de Hugo. [Glisser à droite] Avec α trop grand, il conduit presque au hasard et sort de la route. [Revenir au milieu] Entre les deux, il varie autour de ce qui marche. SAC vise une entropie cible, ici −2, et règle α automatiquement : on va le voir sur la slide suivante.`,
+α dose cette variété. [Faire glisser le curseur à gauche] Avec α tout petit, σ devient minuscule : une seule trajectoire, on retombe sur le problème de Hugo. [Glisser à droite] Avec α trop grand, il conduit presque au hasard et sort de la route. [Revenir au milieu] Entre les deux, il varie autour de ce qui marche. SAC vise une entropie cible, ici −2, et règle α automatiquement : on va le voir sur la slide suivante.
+(Si on vous demande d'où viennent les chiffres : la politique idéale de SAC est proportionnelle à exp(Q/α). Si la note du critique autour de la meilleure action a la forme d'une parabole, cette politique est une gaussienne d'écart-type σ = √(α/k), où k mesure à quel point la note chute quand on s'écarte de la meilleure action. La pédale a un k plus grand que le volant : il n'y a qu'une bonne vitesse, mais plusieurs bonnes trajectoires. L'entropie se calcule ensuite exactement à partir de σ. Les deux valeurs de k sont choisies pour que α = 0,05 donne l'entropie cible −2.)`,
   `MATHIS · ≈ 1:10
 Comment ça apprend ? C'est une boucle, le petit point orange en fait le tour.
 L'acteur choisit une action. L'environnement, la piste, renvoie une récompense et le nouvel état. On range tout ça dans le replay buffer, qui a une capacité d'un million de moments ; sur ce petit entraînement, il n'en contient que 60 000 à la fin. Comme pour le DQN, on y tire 256 moments au hasard : chaque essai sert plusieurs fois, c'est ce qu'on appelle off-policy.
