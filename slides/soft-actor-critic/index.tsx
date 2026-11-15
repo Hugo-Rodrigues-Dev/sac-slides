@@ -134,7 +134,7 @@ const Cover: Page = () => <section style={{ width: '100%', height: '100%', posit
   <div>
     <div style={{ ...label, color: actor }}>IA & apprentissage par renforcement</div>
     <h1 style={{ margin: '30px 0 26px', fontFamily: 'var(--osd-font-display)', fontSize: 'var(--osd-size-hero)', lineHeight: 0.98, letterSpacing: -5, fontWeight: 800 }}>Soft<br />Actor&#8209;Critic</h1>
-    <p style={{ margin: 0, fontSize: 44, color: muted, lineHeight: 1.3 }}>Apprendre à agir,<br /><span style={{ color: entropy }}>sans arrêter d’explorer.</span></p>
+    <p style={{ margin: 0, fontSize: 44, color: muted, lineHeight: 1.3 }}>Apprendre à agir,<br /><span style={{ color: entropy }}>tout en continuant d’explorer.</span></p>
     <div style={{ marginTop: 56 }}>
       <Turn n="1" name={HUGO} topic="Le problème et l’idée" />
       <Turn n="2" name={MATHIS} topic="Les réseaux et les réglages" />
@@ -205,7 +205,7 @@ function Op({ children }: { children: ReactNode }) {
   return <div style={{ fontSize: 64, color: muted }}>{children}</div>;
 }
 
-const Idea: Page = () => <Frame kicker="Fonctionnement" speaker={HUGO} title="L’idée : récompenser la curiosité">
+const Idea: Page = () => <Frame kicker="Fonctionnement" speaker={HUGO} title="L’idée : un bonus pour explorer">
   <div style={{ display: 'flex', alignItems: 'center', gap: 34 }}>
     <Term color={critic}>Récompense</Term>
     <Op>+</Op>
@@ -229,17 +229,17 @@ function AlphaPanel({ name, alpha, color, verdict }: { name: string; alpha: numb
   return <div style={{ background: panel, border: `2px solid ${rule}`, borderRadius: 'var(--osd-radius)', padding: '28px 28px 30px' }}>
     <div style={{ fontSize: 34, fontWeight: 800, color, marginBottom: 20 }}>{name}</div>
     <Curve fn={boltzmann(alpha)} overlay={qToy} w={452} h={220} color={color} />
-    <div style={{ fontSize: 36, fontWeight: 800, marginTop: 20 }}>{verdict}</div>
+    <div style={{ fontSize: 30, fontWeight: 800, marginTop: 20 }}>{verdict}</div>
   </div>;
 }
 
 const Thermostat: Page = () => <Frame kicker="Fonctionnement" speaker={HUGO} title="α : le dosage">
   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 36 }}>
-    <AlphaPanel name="α faible" alpha={0.012} color={muted} verdict="Figé" />
-    <AlphaPanel name="α bien dosé" alpha={0.15} color={actor} verdict="Curieux" />
-    <AlphaPanel name="α fort" alpha={3} color={entropy} verdict="Au hasard" />
+    <AlphaPanel name="α faible" alpha={0.012} color={muted} verdict="Toujours la même action" />
+    <AlphaPanel name="α bien dosé" alpha={0.15} color={actor} verdict="Explore les bonnes actions" />
+    <AlphaPanel name="α fort" alpha={3} color={entropy} verdict="Presque au hasard" />
   </div>
-  <Punchline color={entropy}>α se règle tout seul</Punchline>
+  <Punchline color={entropy}>En pratique, α est appris automatiquement</Punchline>
 </Frame>;
 
 // ---------- Un acteur, deux critiques ----------
@@ -262,7 +262,7 @@ const Architecture: Page = () => <Frame kicker="Fonctionnement" speaker={MATHIS}
 
     <rect x={250} y={135} width={340} height={160} rx={20} style={{ fill: panel, stroke: actor, strokeWidth: 5 }} />
     <text x={420} y={208} textAnchor="middle" style={{ fill: actor, fontSize: 46, fontWeight: 800 }}>Acteur</text>
-    <text x={420} y={254} textAnchor="middle" style={{ fill: muted, fontSize: 30 }}>joue</text>
+    <text x={420} y={254} textAnchor="middle" style={{ fill: muted, fontSize: 30 }}>choisit l’action</text>
 
     <rect x={760} y={15} width={330} height={145} rx={20} style={{ fill: panel, stroke: critic, strokeWidth: 4 }} />
     <text x={850} y={104} textAnchor="middle" style={{ fill: critic, fontSize: 34, fontWeight: 800 }}>Critique 1</text>
@@ -276,7 +276,7 @@ const Architecture: Page = () => <Frame kicker="Fonctionnement" speaker={MATHIS}
     <text x={1320} y={198} textAnchor="middle" style={{ fill: '#FFFFFF', fontSize: 40, fontWeight: 800, fontFamily: mono }}>min</text>
     <text x={1320} y={268} textAnchor="middle" style={{ fill: '#FFFFFF', fontSize: 64, fontWeight: 800 }}>8</text>
   </svg>
-  <Punchline color={critic}>On écoute le plus prudent</Punchline>
+  <Punchline color={critic}>On garde la note la plus basse</Punchline>
 </Frame>;
 
 // ---------- La boucle ----------
@@ -324,16 +324,16 @@ function Knob({ value, name, role, fresh }: { value: string; name: string; role:
   </div>;
 }
 
-const Hyper: Page = () => <Frame kicker="Hyperparamètres" speaker={MATHIS} title="6 réglages, 5 déjà vus en cours">
+const Hyper: Page = () => <Frame kicker="Hyperparamètres" speaker={MATHIS} title="6 réglages">
   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 30 }}>
     <Knob value="0,99" name="γ · actualisation" role="poids du futur" />
     <Knob value="3·10⁻⁴" name="Taux d’apprentissage" role="vitesse d’apprentissage" />
     <Knob value="10⁶" name="Replay buffer" role="taille de la mémoire" />
     <Knob value="256" name="Batch" role="souvenirs par pas" />
     <Knob value="0,005" name="τ · réseaux cibles" role="vitesse de suivi" />
-    <Knob value="auto" name="α · température" role="dosage de la curiosité" fresh />
+    <Knob value="auto" name="α · température" role="poids de l’entropie" fresh />
   </div>
-  <Punchline color={actor}>Valeurs par défaut = bon départ</Punchline>
+  <Punchline color={actor}>Les valeurs par défaut suffisent pour commencer</Punchline>
 </Frame>;
 
 // ---------- Minitaur ----------
@@ -371,19 +371,66 @@ const Minitaur: Page = () => <Frame kicker="Cas réel · Berkeley & Google, 2018
 
 // ---------- Autres robots ----------
 
-function Result({ value, color, title, detail }: { value: string; color: string; title: string; detail: string }) {
-  return <div style={{ background: panel, border: `2px solid ${rule}`, borderTop: `10px solid ${color}`, borderRadius: 'var(--osd-radius)', padding: '36px 36px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-    <span style={{ fontFamily: 'var(--osd-font-display)', fontSize: 130, fontWeight: 800, lineHeight: 1, color, letterSpacing: -4 }}>{value}</span>
-    <span style={{ fontSize: 42, fontWeight: 800 }}>{title}</span>
+const ink = '#121A22';
+
+function WalkSketch() {
+  return <svg viewBox="0 0 448 200" width={448} height={200}>
+    <line x1={10} y1={176} x2={438} y2={176} style={{ stroke: ink, strokeWidth: 4 }} />
+    <path d="M40,120 L110,120 M40,140 L90,140" style={{ stroke: actor, strokeWidth: 5, strokeLinecap: 'round', strokeOpacity: 0.35 }} />
+    <g transform="translate(250,124) scale(0.88)"><Quadruped x={0} y={0} angle={0} /></g>
+  </svg>;
+}
+
+function Brick({ x, y, color }: { x: number; y: number; color: string }) {
+  return <g>
+    <rect x={x + 8} y={y - 6} width={12} height={7} rx={2} style={{ fill: color }} />
+    <rect x={x + 40} y={y - 6} width={12} height={7} rx={2} style={{ fill: color }} />
+    <rect x={x} y={y} width={60} height={22} rx={3} style={{ fill: color }} />
+  </g>;
+}
+
+function StackSketch() {
+  return <svg viewBox="0 0 448 200" width={448} height={200}>
+    <line x1={10} y1={190} x2={438} y2={190} style={{ stroke: ink, strokeWidth: 4 }} />
+    <rect x={60} y={160} width={80} height={30} rx={6} style={{ fill: muted }} />
+    <path d="M100,160 L170,60 L290,70" style={{ fill: 'none', stroke: ink, strokeWidth: 14, strokeLinecap: 'round', strokeLinejoin: 'round' }} />
+    <circle cx={100} cy={160} r={10} style={{ fill: panel, stroke: ink, strokeWidth: 4 }} />
+    <circle cx={170} cy={60} r={10} style={{ fill: panel, stroke: ink, strokeWidth: 4 }} />
+    <path d="M290,70 L290,88 M268,88 L312,88 M268,88 L268,108 M312,88 L312,108" style={{ fill: 'none', stroke: ink, strokeWidth: 6, strokeLinecap: 'round' }} />
+    <Brick x={260} y={110} color={critic} />
+    <Brick x={260} y={146} color={entropy} />
+    <Brick x={260} y={168} color={actor} />
+  </svg>;
+}
+
+function ValveSketch() {
+  return <svg viewBox="0 0 448 200" width={448} height={200}>
+    <Arrowheads />
+    <rect x={20} y={90} width={74} height={48} rx={8} style={{ fill: muted }} />
+    <rect x={40} y={80} width={24} height={12} rx={3} style={{ fill: muted }} />
+    <circle cx={57} cy={114} r={14} style={{ fill: panel }} />
+    <line x1={96} y1={114} x2={180} y2={114} style={{ stroke: muted, strokeWidth: 3, strokeDasharray: '8 6' }} />
+    <circle cx={260} cy={120} r={58} style={{ fill: panel, stroke: entropy, strokeWidth: 6 }} />
+    <circle cx={306} cy={120} r={11} style={{ fill: entropy }} />
+    <path d="M206,170 A72,72 0 0 0 316,172" style={{ fill: 'none', stroke: entropy, strokeWidth: 4 }} markerEnd="url(#ah-ink)" />
+    <path d="M195,12 L222,66 M260,4 L260,58 M325,12 L298,66" style={{ fill: 'none', stroke: ink, strokeWidth: 12, strokeLinecap: 'round' }} />
+  </svg>;
+}
+
+function Result({ value, color, title, detail, sketch }: { value: string; color: string; title: string; detail: string; sketch: ReactNode }) {
+  return <div style={{ background: panel, border: `2px solid ${rule}`, borderTop: `10px solid ${color}`, borderRadius: 'var(--osd-radius)', padding: '32px 36px 28px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <span style={{ fontFamily: 'var(--osd-font-display)', fontSize: 120, fontWeight: 800, lineHeight: 1, color, letterSpacing: -4 }}>{value}</span>
+    <span style={{ fontSize: 40, fontWeight: 800 }}>{title}</span>
     <span style={{ fontSize: 30, color: muted }}>{detail}</span>
+    <div style={{ marginTop: 18, paddingTop: 18, borderTop: `2px solid ${soft}` }}>{sketch}</div>
   </div>;
 }
 
 const Results: Page = () => <Frame kicker="Cas réels" speaker={QUENTIN} title="D’autres robots, en quelques heures">
   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 40 }}>
-    <Result value="2 h" color={actor} title="Marcher" detail="robot à 4 pattes" />
-    <Result value="2 h" color={critic} title="Empiler des Lego" detail="bras à 7 articulations" />
-    <Result value="20 h" color={entropy} title="Tourner une vanne" detail="main robot + caméra" />
+    <Result value="2 h" color={actor} title="Marcher" detail="robot à 4 pattes" sketch={<WalkSketch />} />
+    <Result value="2 h" color={critic} title="Empiler des Lego" detail="bras à 7 articulations" sketch={<StackSketch />} />
+    <Result value="20 h" color={entropy} title="Tourner une vanne" detail="main robot + caméra" sketch={<ValveSketch />} />
   </div>
 </Frame>;
 
@@ -403,7 +450,7 @@ function Check({ ok, children }: { ok: boolean; children: ReactNode }) {
   </div>;
 }
 
-const WhenToUse: Page = () => <Frame kicker="Quand l’utiliser" speaker={QUENTIN} title="SAC, oui ou non ?">
+const WhenToUse: Page = () => <Frame kicker="Quand l’utiliser" speaker={QUENTIN} title="Quand choisir SAC ?">
   <div style={{ display: 'grid', gridTemplateColumns: '860px 1fr', gap: 80, alignItems: 'center' }}>
     <svg viewBox="0 0 1000 600" width={860} height={516}>
       <Arrowheads />
@@ -442,9 +489,9 @@ function Recap({ color, children }: { color: string; children: ReactNode }) {
 
 const Takeaways: Page = () => <Frame kicker="À retenir" speaker={QUENTIN} title="SAC en 3 idées">
   <div style={{ display: 'flex', flexDirection: 'column', gap: 46 }}>
-    <Recap color={actor}>1 acteur, 2 critiques prudents</Recap>
-    <Recap color={env}>Une mémoire qui réutilise tout</Recap>
-    <Recap color={entropy}>Une curiosité auto-dosée</Recap>
+    <Recap color={actor}>Un acteur qui choisit, deux critiques qui notent</Recap>
+    <Recap color={env}>Un replay buffer pour réutiliser les essais</Recap>
+    <Recap color={entropy}>Un bonus d’entropie pour explorer</Recap>
   </div>
   <div style={{ marginTop: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 60, paddingTop: 30, borderTop: `2px solid ${rule}` }}>
     <div style={{ fontSize: 22, color: muted, lineHeight: 1.6, fontFamily: mono }}>
@@ -487,13 +534,13 @@ Petite précision : ce α n'est pas le α du Q-learning, le taux d'apprentissage
 α trop faible : il met tout sur une seule action, il est figé.
 α bien dosé : il explore les deux bonnes zones.
 α trop fort : il joue presque au hasard.
-Et dans SAC, on n'a pas à le choisir : α s'ajuste tout seul pendant l'entraînement. Je laisse Mathis vous montrer comment c'est construit.`,
+Et dans SAC, on n'a pas à le choisir : α est appris pendant l'entraînement, comme les poids des réseaux. Je laisse Mathis vous montrer comment c'est construit.`,
 
   `MATHIS · ≈ 0:55
 SAC, c'est un acteur et deux critiques, trois réseaux de neurones.
 L'acteur reçoit l'état et sort directement une action, même continue. Ça règle le premier problème du DQN.
 Les critiques, ce sont des réseaux Q comme dans le DQN : ils prennent l'état et l'action, et donnent une note. Ici le premier dit 12, le second dit 8.
-On garde le minimum, 8. Un réseau Q a tendance à surestimer certaines actions, et l'acteur irait justement vers ces erreurs. Avec deux avis, on écoute le plus prudent.
+On garde le minimum, 8. Un réseau Q a tendance à surestimer certaines actions, et l'acteur irait justement vers ces erreurs. Avec deux réseaux, on prend la note la plus basse pour limiter ce problème.
 Ensuite l'acteur se corrige pour aller vers les actions bien notées, en gardant son bonus d'entropie.`,
 
   `MATHIS · ≈ 0:50
@@ -533,7 +580,7 @@ Donc SAC est recommandé quand les actions sont continues, quand chaque essai co
 Par contre, avec peu d'actions discrètes, un DQN suffit. Et si on a un simulateur très rapide qu'on peut lancer des milliers de fois en parallèle, PPO va souvent plus vite.`,
 
   `QUENTIN · ≈ 0:25
-Pour résumer SAC en trois idées : un acteur et deux critiques, dont on garde l'avis le plus prudent. Une mémoire qui réutilise les expériences. Et une curiosité dosée automatiquement.
+Pour résumer : un acteur qui choisit l'action et deux critiques qui la notent, en gardant la note la plus basse. Un replay buffer pour réutiliser les anciens essais. Et un bonus d'entropie pour explorer, avec α appris automatiquement.
 Les sources sont en bas. Merci, vous avez des questions ?`,
 ];
 
