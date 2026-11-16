@@ -1,44 +1,67 @@
 {
-  "aveugle": {
-    "sans plots": {
-      "arrivées": 100,
-      "plot percuté": 0,
-      "sortie de route": 0,
-      "temps écoulé": 0
+  "capteurs, jamais vu de plot": {
+    "graines": 1,
+    "side": {
+      "arrivées": [
+        35.8
+      ],
+      "plots évités": [
+        49.5
+      ]
     },
-    "avec plots": {
-      "arrivées": 40,
-      "plot percuté": 60,
-      "sortie de route": 0,
-      "temps écoulé": 0
+    "anywhere": {
+      "arrivées": [
+        22.3
+      ],
+      "plots évités": [
+        31.3
+      ]
     }
   },
-  "capteurs": {
-    "sans plots": {
-      "arrivées": 100,
-      "plot percuté": 0,
-      "sortie de route": 0,
-      "temps écoulé": 0
+  "v1 : entraînée avec plots": {
+    "graines": 1,
+    "side": {
+      "arrivées": [
+        62.9
+      ],
+      "plots évités": [
+        74.7
+      ]
     },
-    "avec plots": {
-      "arrivées": 50,
-      "plot percuté": 50,
-      "sortie de route": 0,
-      "temps écoulé": 0
+    "anywhere": {
+      "arrivées": [
+        46.7
+      ],
+      "plots évités": [
+        61.6
+      ]
     }
   },
-  "plots": {
-    "sans plots": {
-      "arrivées": 100,
-      "plot percuté": 0,
-      "sortie de route": 0,
-      "temps écoulé": 0
+  "v2 : 15 rayons × 2, choc −40, curriculum": {
+    "graines": 3,
+    "side": {
+      "arrivées": [
+        96.1,
+        94.8,
+        90.0
+      ],
+      "plots évités": [
+        99.1,
+        99.7,
+        98.2
+      ]
     },
-    "avec plots": {
-      "arrivées": 69,
-      "plot percuté": 28,
-      "sortie de route": 2,
-      "temps écoulé": 0
+    "anywhere": {
+      "arrivées": [
+        83.0,
+        81.7,
+        75.5
+      ],
+      "plots évités": [
+        96.1,
+        93.1,
+        92.6
+      ]
     }
   }
 }

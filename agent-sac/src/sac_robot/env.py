@@ -54,6 +54,13 @@ RAY_ANGLES = [math.radians(a) for a in (-60, -40, -20, 0, 20, 40, 60)]
 RAY_RANGE = 8.0
 RAY_STEP = 0.25
 
+# ---- Version 2 (option --v2) : mieux voir, de plus loin, et une récompense qui pousse à éviter ----
+RAY_ANGLES_V2 = [math.radians(a) for a in np.linspace(-70, 70, 15)]
+RAY_RANGE_V2 = 18.0            # à 12 m/s, 1,5 s pour réagir (contre 0,7 s à 8 m)
+CRASH_PENALTY_V2 = 40.0        # percuter un plot doit coûter plus qu'un tour ne rapporte
+NEAR_V2 = 1.5                  # en dessous de cet écart à un plot (m), petite pénalité
+NEAR_PENALTY_V2 = 0.1
+
 
 def track_point(s: float, d: float) -> tuple[float, float]:
     """Position (x, y) à la distance s le long de la route, avec un écart latéral d (d < 0 : intérieur)."""
@@ -107,20 +114,45 @@ def ray_distances(x: float, y: float, heading: float, obstacles: list[tuple[floa
     return out
 
 
+def ray_scan(x: float, y: float, heading: float, obstacles: list[tuple[float, float]],
+             angles: list[float], max_range: float, step: float = RAY_STEP) -> tuple[np.ndarray, np.ndarray]:
+    """Pour chaque rayon : distance au bord de la route ET distance au premier plot (deux mesures
+    séparées, pour que la voiture sache CE qu'elle voit). Calcul vectorisé avec numpy."""
+    a = heading + np.asarray(angles)[:, None]
+    t = np.arange(step, max_range, step)[None, :]
+    px, py = x + np.cos(a) * t, y + np.sin(a) * t
+    d = np.where(py > L, np.hypot(px, py - L) - R, np.where(px >= 0, px - R, -px - R))
+    edge_hit = np.abs(d) > HALF
+    tt = np.broadcast_to(t, px.shape)
+    edge = np.where(edge_hit.any(axis=1), np.where(edge_hit, tt, np.inf).min(axis=1), max_range)
+    cone = np.full(len(angles), max_range)
+    if obstacles:
+        hit = np.zeros_like(edge_hit)
+        for ox, oy in obstacles:
+            hit |= (px - ox) ** 2 + (py - oy) ** 2 < OBST_R ** 2
+        cone = np.where(hit.any(axis=1), np.where(hit, tt, np.inf).min(axis=1), max_range)
+        cone = np.minimum(cone, max_range)   # un plot derrière le bord de route ne compte pas
+        cone = np.where(cone > edge, max_range, cone)
+    return edge, cone
+
+
 class CarTrackEnv(gym.Env):
     metadata = {"render_modes": []}
 
-    def __init__(self, obstacles: int = 0, sensors: bool | None = None):
+    def __init__(self, obstacles: int = 0, sensors: bool | None = None, v2: bool = False, placement: str | None = None):
         """obstacles = 0 : la piste seule (version des slides). obstacles = n : jusqu'à n plots
         posés au hasard à chaque épisode. sensors : la voiture reçoit 7 rayons de « vue »
         (par défaut, seulement s'il y a des plots ; on peut les activer sur la piste seule)."""
         super().__init__()
         self.max_obstacles = obstacles
-        self.sensors = obstacles > 0 if sensors is None else sensors
+        self.v2 = v2
+        # où poser les plots : « side » (d'un côté de la route, v1) ou « anywhere » (partout, v2)
+        self.placement = placement or ("anywhere" if v2 else "side")
+        self.sensors = v2 or (obstacles > 0 if sensors is None else sensors)
         self.obstacles: list[tuple[float, float]] = []
         self.action_space = spaces.Box(-1.0, 1.0, shape=(2,), dtype=np.float32)
         # écart, angle (sin, cos), vitesse, route devant (3 × sin/cos), action précédente (2), [+ 7 rayons]
-        n = 4 + 2 * len(LOOKAHEAD) + 2 + (N_RAYS if self.sensors else 0)
+        n = 4 + 2 * len(LOOKAHEAD) + 2 + (2 * len(RAY_ANGLES_V2) if v2 else N_RAYS if self.sensors else 0)
         self.observation_space = spaces.Box(-1.0, 1.0, shape=(n,), dtype=np.float32)
 
     def place_obstacles(self, points: list[tuple[float, float]]):
@@ -134,7 +166,13 @@ class CarTrackEnv(gym.Env):
         for k in LOOKAHEAD:
             r = wrap(track_heading(min(S_END, s + k)) - self.heading)
             ahead += [math.sin(r), math.cos(r)]
-        rays = [r / RAY_RANGE for r in ray_distances(self.x, self.y, self.heading, self.obstacles)] if self.sensors else []
+        if self.v2:
+            edge, cone = ray_scan(self.x, self.y, self.heading, self.obstacles, RAY_ANGLES_V2, RAY_RANGE_V2)
+            rays = [*(edge / RAY_RANGE_V2), *(cone / RAY_RANGE_V2)]
+        elif self.sensors:
+            rays = [r / RAY_RANGE for r in ray_distances(self.x, self.y, self.heading, self.obstacles)]
+        else:
+            rays = []
         return np.array([d / HALF, math.sin(rel), math.cos(rel), self.v / V_MAX, *ahead, *self.last_action, *rays],
                         dtype=np.float32).clip(-1, 1)
 
@@ -148,7 +186,16 @@ class CarTrackEnv(gym.Env):
         self.steps = 0
         self.s, _ = project(self.x, self.y)
         self.obstacles = []
-        if self.max_obstacles:
+        if self.max_obstacles and self.placement == "anywhere":
+            # v2 : plots n'importe où en travers de la route (y compris au milieu), espacés de 5 m ;
+            # avec une route de 3 m il reste toujours un passage d'un côté ou de l'autre
+            n = int(self.np_random.integers(0, self.max_obstacles + 1))
+            spots = sorted(self.np_random.uniform(5.0, S_END - 4.0, size=n))
+            for i, sp in enumerate(spots):
+                if i and sp - spots[i - 1] < 5.0:
+                    continue
+                self.obstacles.append(track_point(float(sp), float(self.np_random.uniform(-1.0, 1.0))))
+        elif self.max_obstacles:
             n = int(self.np_random.integers(0, self.max_obstacles + 1))
             spots = sorted(self.np_random.uniform(5.0, S_END - 4.0, size=n))
             for i, sp in enumerate(spots):
@@ -184,8 +231,12 @@ class CarTrackEnv(gym.Env):
         finished = s >= S_END
 
         reward = progress - 0.01
+        if self.v2 and self.obstacles:
+            gap = min(math.hypot(self.x - ox, self.y - oy) for ox, oy in self.obstacles) - OBST_R - CAR_RADIUS
+            if gap < NEAR_V2:
+                reward -= NEAR_PENALTY_V2 * (NEAR_V2 - max(gap, 0.0)) / NEAR_V2
         if off:
-            reward -= 10.0
+            reward -= CRASH_PENALTY_V2 if (self.v2 and hit) else 10.0
         if finished and not off:
             reward += 10.0
 

@@ -31,11 +31,11 @@ from .sac import Actor
 EVAL_EPISODES = 40
 
 
-def evaluate(actor: Actor, obstacles: int, sensors: bool) -> tuple[int, int]:
+def evaluate(actor: Actor, obstacles: int, sensors: bool, v2: bool = False) -> tuple[int, int]:
     """Taux d'arrivées et de sorties de route, en jouant l'action moyenne."""
     finished = off = 0
     for i in range(EVAL_EPISODES):
-        env = CarTrackEnv(obstacles=obstacles, sensors=sensors)
+        env = CarTrackEnv(obstacles=obstacles, sensors=sensors, v2=v2)
         s, _ = env.reset(seed=10_000 + i)
         while True:
             with torch.no_grad():
@@ -102,8 +102,9 @@ def main():
     config = json.loads((run / "config.json").read_text()) if (run / "config.json").exists() else {"obstacles": 0}
     obstacles = config.get("obstacles", 0)
     sensors = config.get("sensors", obstacles > 0)
+    v2 = config.get("v2", False)
 
-    env = CarTrackEnv(obstacles=obstacles, sensors=sensors)
+    env = CarTrackEnv(obstacles=obstacles, sensors=sensors, v2=v2)
     obs_dim, act_dim = env.observation_space.shape[0], env.action_space.shape[0]
 
     snapshots = []
@@ -112,7 +113,7 @@ def main():
         actor = Actor(obs_dim, act_dim)
         actor.load_state_dict(torch.load(ckpt))
         actor.eval()
-        success, crash = evaluate(actor, obstacles, sensors)
+        success, crash = evaluate(actor, obstacles, sensors, v2)
         print(f"instantané {step:>7,} pas : arrivées {success:3d} %, sorties ou chocs {crash:3d} %")
         snapshots.append({"step": step, "success": success, "crash": crash, "layers": weights(actor)})
 
@@ -125,7 +126,10 @@ def main():
             "R": E.R, "L": E.L, "half": E.HALF, "carHalf": E.CAR_HALF, "end": E.S_END,
             "wheelbase": E.WHEELBASE, "maxSteer": E.MAX_STEER, "vMax": E.V_MAX, "speedLag": E.SPEED_LAG,
             "grip": E.GRIP, "dt": E.DT, "maxSteps": E.MAX_STEPS, "lookahead": list(E.LOOKAHEAD),
-            "sensors": env.sensors, "rayAngles": E.RAY_ANGLES, "rayRange": E.RAY_RANGE, "rayStep": E.RAY_STEP,
+            "sensors": env.sensors, "v2": v2,
+            "rayAngles": E.RAY_ANGLES_V2 if v2 else E.RAY_ANGLES, "rayRange": E.RAY_RANGE_V2 if v2 else E.RAY_RANGE,
+            "rayStep": E.RAY_STEP, "placement": env.placement,
+            "crashPenalty": E.CRASH_PENALTY_V2 if v2 else 10.0, "near": E.NEAR_V2, "nearPenalty": E.NEAR_PENALTY_V2 if v2 else 0.0,
             "obstR": E.OBST_R, "carRadius": E.CAR_RADIUS, "trainObstacles": obstacles,
         },
         "snapshots": snapshots, "curves": curves,
