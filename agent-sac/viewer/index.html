@@ -177,7 +177,7 @@ input[type=range] { width: 100%; accent-color: var(--actor); margin: 0; }
         <div class="tag">Calques</div>
         <label><input type="checkbox" id="tCloud" checked> <span class="sw" style="background:var(--entropy)"></span> 16 actions tirées dans la politique (entropie)</label>
         <label><input type="checkbox" id="tTrail" checked> <span class="sw" style="background:var(--actor)"></span> trajectoire</label>
-        <label><input type="checkbox" id="tRays" checked> <span class="sw" style="background:var(--critic)"></span> capteurs (7 rayons)</label>
+        <label><input type="checkbox" id="tRays" checked> <span class="sw" style="background:var(--critic)"></span> capteurs (rayons)</label>
       </div>
     </aside>
   </div>
@@ -202,13 +202,15 @@ input[type=range] { width: 100%; accent-color: var(--actor); margin: 0; }
 </script>
 <script>
 window.startLab = () => {
-  const AGENTS = window.SAC_AGENTS || [];
+  // ordre de l'histoire : capteurs sans plots → v1 → v2 (les autres agents à la fin)
+  const ORDER = ['sensors', 'obstacles_long', 'v2_seed0'];
+  const AGENTS = (window.SAC_AGENTS || []).slice().sort((a, b) => (ORDER.indexOf(a.id) + 1 || 99) - (ORDER.indexOf(b.id) + 1 || 99));
   if (!AGENTS.length) { document.getElementById('missing').style.display = 'grid'; document.getElementById('app').style.display = 'none'; return; }
 
   const $ = id => document.getElementById(id);
   const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
   const fr = (v, d = 1) => v.toFixed(d).replace('.', ',');
-  let D = AGENTS.find(a => a.id === 'sensors') || AGENTS[0];
+  let D = AGENTS.find(a => a.id === 'v2_seed0') || AGENTS[AGENTS.length - 1];
   let E = D.env;
   const S = { snap: 0, playing: true, speed: 2, mode: 'mean', acc: 0, hold: 0 };
   let obstacles = [];          // plots posés : [x, y]
@@ -223,16 +225,23 @@ window.startLab = () => {
     : x >= 0 ? [y, x - E.R] : [E.L + Math.PI * E.R + (E.L - y), -x - E.R];
   const wrap = a => ((a + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
 
-  function rays(x, y, h) {
-    return E.rayAngles.map(rel => {
+  // v1 : une distance par rayon (bord OU plot). v2 : deux distances séparées (bord, plot).
+  function scan(x, y, h) {
+    const edge = [], cone = [];
+    for (const rel of E.rayAngles) {
       const a = h + rel, dx = Math.cos(a), dy = Math.sin(a);
-      for (let t = E.rayStep; t < E.rayRange; t += E.rayStep) {
+      let e = E.rayRange, c = E.rayRange;
+      for (let t = E.rayStep; t < E.rayRange - 1e-9; t += E.rayStep) {
         const px = x + dx * t, py = y + dy * t;
-        if (Math.abs(project(px, py)[1]) > E.half || obstacles.some(([ox, oy]) => (px - ox) ** 2 + (py - oy) ** 2 < E.obstR ** 2)) return t;
+        if (c === E.rayRange && obstacles.some(([ox, oy]) => (px - ox) ** 2 + (py - oy) ** 2 < E.obstR ** 2)) c = t;
+        if (Math.abs(project(px, py)[1]) > E.half) { e = t; break; }
       }
-      return E.rayRange;
-    });
+      if (c > e) c = E.rayRange;
+      edge.push(e); cone.push(c);
+    }
+    return { edge, cone };
   }
+  const rays = (x, y, h) => { const { edge, cone } = scan(x, y, h); return edge.map((e, i) => Math.min(e, cone[i])); };
 
   function observe(c) {
     const [s, d] = project(c.x, c.y);
@@ -240,7 +249,12 @@ window.startLab = () => {
     const o = [d / E.half, Math.sin(rel), Math.cos(rel), c.v / E.vMax];
     for (const k of E.lookahead) { const r = wrap(trackHeading(Math.min(E.end, s + k)) - c.h); o.push(Math.sin(r), Math.cos(r)); }
     o.push(c.last[0], c.last[1]);
-    if (E.sensors) { c.rays = rays(c.x, c.y, c.h); for (const r of c.rays) o.push(r / E.rayRange); }
+    if (E.v2) {
+      const { edge, cone } = scan(c.x, c.y, c.h);
+      c.rays = edge.map((e, i) => Math.min(e, cone[i]));
+      for (const e of edge) o.push(e / E.rayRange);
+      for (const k of cone) o.push(k / E.rayRange);
+    } else if (E.sensors) { c.rays = rays(c.x, c.y, c.h); for (const r of c.rays) o.push(r / E.rayRange); }
     return o.map(v => Math.max(-1, Math.min(1, v)));
   }
 
@@ -293,13 +307,17 @@ window.startLab = () => {
     const hit = obstacles.some(([ox, oy]) => Math.hypot(car.x - ox, car.y - oy) < E.obstR + E.carRadius);
     const off = Math.abs(d) > E.half - E.carHalf;
     car.ret += (s - car.s) - 0.01; car.s = s;
+    if (E.nearPenalty && obstacles.length) {
+      const gap = Math.min(...obstacles.map(([ox, oy]) => Math.hypot(car.x - ox, car.y - oy))) - E.obstR - E.carRadius;
+      if (gap < E.near) car.ret -= E.nearPenalty * (E.near - Math.max(gap, 0)) / E.near;
+    }
     car.trail.push([car.x, car.y]);
     if (hit) car.outcome = 'hit';
     else if (off) car.outcome = 'off';
     else if (s >= E.end) car.outcome = 'finished';
     else if (car.steps >= E.maxSteps) car.outcome = 'timeout';
     if (car.outcome) {
-      car.ret += car.outcome === 'finished' ? 10 : car.outcome === 'timeout' ? 0 : -10;
+      car.ret += car.outcome === 'finished' ? 10 : car.outcome === 'timeout' ? 0 : car.outcome === 'hit' ? -(E.crashPenalty || 10) : -10;
       stats.runs++; car.outcome === 'finished' ? stats.ok++ : stats.ko++;
       renderStats();
       return;
@@ -349,20 +367,23 @@ window.startLab = () => {
     obstacles = [];
     const n = 1 + Math.floor(Math.random() * 3);
     const spots = Array.from({ length: n }, () => 5 + Math.random() * (E.end - 9)).sort((a, b) => a - b);
-    spots.forEach((s, i) => { if (!i || s - spots[i - 1] >= 4) obstacles.push(tp(s, (Math.random() < 0.5 ? 1 : -1) * (0.3 + 0.7 * Math.random()))); });
+    // comme à l'entraînement de l'agent choisi : d'un côté (v1) ou n'importe où en travers (v2)
+    const lateral = () => E.placement === 'anywhere' ? Math.random() * 2 - 1 : (Math.random() < 0.5 ? 1 : -1) * (0.3 + 0.7 * Math.random());
+    spots.forEach((s, i) => { if (!i || s - spots[i - 1] >= 5) obstacles.push(tp(s, lateral())); });
     resetStats(); newRun();
   };
   function renderAgents() {
     $('agentSel').innerHTML = '';
     AGENTS.forEach(a => {
       const b = document.createElement('button');
-      b.className = 'b'; b.textContent = a.name;
+      const SHORT = { sensors: 'capteurs seuls', obstacles_long: 'v1', v2_seed0: 'v2' };
+      b.className = 'b'; b.textContent = SHORT[a.id] || a.name; b.title = a.name;
       b.setAttribute('aria-pressed', a === D);
       b.onclick = () => { D = a; E = a.env; renderAgents(); selectSnap(D.snapshots.length - 1); };
       $('agentSel').appendChild(b);
     });
     $('chipObst').textContent = E.trainObstacles ? `0 à ${E.trainObstacles}` : 'aucun';
-    $('chipSens').textContent = E.sensors ? '7 rayons' : 'aucun';
+    $('chipSens').textContent = E.v2 ? `${E.rayAngles.length} rayons × 2, ${E.rayRange} m` : E.sensors ? `${E.rayAngles.length} rayons, ${E.rayRange} m` : 'aucun';
   }
   renderAgents();
   addEventListener('keydown', e => {

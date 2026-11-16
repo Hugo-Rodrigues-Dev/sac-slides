@@ -30,6 +30,8 @@ def main():
     parser.add_argument("--alpha", type=float, default=None, help="fixer α à la main (sinon il est appris)")
     parser.add_argument("--obstacles", type=int, default=0, help="nombre max de plots posés au hasard à chaque épisode")
     parser.add_argument("--sensors", action="store_true", help="donner les 7 rayons à la voiture, même sans plots")
+    parser.add_argument("--v2", action="store_true", help="version 2 : 15 rayons × 2 mesures sur 18 m, choc à −40, plots partout")
+    parser.add_argument("--curriculum", action="store_true", help="1 plot max au début, puis 2, puis --obstacles")
     args = parser.parse_args()
 
     torch.manual_seed(args.seed)
@@ -37,9 +39,21 @@ def main():
     out = Path(args.run)
     (out / "checkpoints").mkdir(parents=True, exist_ok=True)
 
-    sensors = args.sensors or args.obstacles > 0
-    env = CarTrackEnv(obstacles=args.obstacles, sensors=sensors)
-    (out / "config.json").write_text(json.dumps({"obstacles": args.obstacles, "sensors": sensors, "alpha": args.alpha, "steps": args.steps}))
+    sensors = args.sensors or args.obstacles > 0 or args.v2
+    env = CarTrackEnv(obstacles=args.obstacles, sensors=sensors, v2=args.v2)
+    (out / "config.json").write_text(json.dumps({"obstacles": args.obstacles, "sensors": sensors, "v2": args.v2,
+                                                  "curriculum": args.curriculum, "alpha": args.alpha,
+                                                  "steps": args.steps, "seed": args.seed}))
+
+    def max_obstacles_at(step: int) -> int:
+        """Curriculum : on augmente la difficulté par paliers."""
+        if not args.curriculum or args.obstacles <= 1:
+            return args.obstacles
+        if step < args.steps // 4:
+            return 1
+        if step < args.steps // 2:
+            return min(2, args.obstacles)
+        return args.obstacles
     obs_dim, act_dim = env.observation_space.shape[0], env.action_space.shape[0]
     agent = SAC(obs_dim, act_dim, SACConfig(), fixed_alpha=args.alpha)
     buffer = ReplayBuffer(obs_dim, act_dim, agent.cfg.buffer_size)
@@ -51,6 +65,7 @@ def main():
     metrics = csv.writer(metrics_file)
     metrics.writerow(["step", "episode", "return", "finished", "off", "length", "alpha", "entropy", "q_mean"])
 
+    env.max_obstacles = max_obstacles_at(0)
     s, _ = env.reset(seed=args.seed)
     ep, ep_return, ep_len = 0, 0.0, 0
     recent = deque(maxlen=50)
@@ -87,6 +102,7 @@ def main():
                               round(last_stats["alpha"], 5), round(last_stats["entropy"], 4), round(last_stats["q_mean"], 3)])
             ep += 1
             ep_return, ep_len = 0.0, 0
+            env.max_obstacles = max_obstacles_at(step)
             s, _ = env.reset()
 
         if step % 2_000 == 0 and step > 0:

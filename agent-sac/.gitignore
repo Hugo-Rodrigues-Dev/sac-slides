@@ -8,4 +8,7 @@ runs_*.log
 runs/*
 !runs/sensors/
 !runs/obstacles_long/
+!runs/v2_seed0/
+!runs/v2_seed1/
+!runs/v2_seed2/
 !runs/compare.json

@@ -3,8 +3,8 @@
 # This script does not change Windows security settings.
 $ErrorActionPreference = 'Stop'
 
-if ($args.Count -eq 0 -or $args[0] -notin @('train', 'export', 'export-slides', 'compare')) {
-    throw 'Usage: .\run-agent.ps1 train|export|export-slides|compare [arguments]'
+if ($args.Count -eq 0 -or $args[0] -notin @('train', 'export', 'export-slides', 'compare', 'diagnose')) {
+    throw 'Usage: .\run-agent.ps1 train|export|export-slides|compare|diagnose [arguments]'
 }
 
 $moduleNames = @{
@@ -12,6 +12,7 @@ $moduleNames = @{
     'export' = 'sac_robot.export'
     'export-slides' = 'sac_robot.export_slides'
     'compare' = 'sac_robot.compare'
+    'diagnose' = 'sac_robot.diagnose'
 }
 $moduleName = $moduleNames[$args[0]]
 $moduleArguments = @($args | Select-Object -Skip 1)

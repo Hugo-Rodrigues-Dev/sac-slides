@@ -16,6 +16,7 @@ train = "sac_robot.train:main"
 export = "sac_robot.export:main"
 export-slides = "sac_robot.export_slides:main"
 compare = "sac_robot.compare:main"
+diagnose = "sac_robot.diagnose:main"
 
 [build-system]
 requires = ["hatchling"]

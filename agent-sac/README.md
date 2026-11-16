@@ -3,7 +3,8 @@
 > Dossier `agent-sac/` du dépôt de l'exposé. Il contient le code de notre propre SAC, **les deux agents déjà entraînés** et le labo prêt à ouvrir :
 >
 > - `runs/sensors/` : voiture avec capteurs, entraînée sur la piste seule (60 000 pas, jamais vu de plot) ;
-> - `runs/obstacles_long/` : voiture entraînée avec 0 à 3 plots au hasard (200 000 pas) ;
+> - `runs/obstacles_long/` : v1, voiture entraînée avec 0 à 3 plots au hasard (200 000 pas) ;
+> - `runs/v2_seed0/`, `v2_seed1/`, `v2_seed2/` : v2, la version améliorée (3 graines, 400 000 pas chacune), voir plus bas ;
 > - dans chaque dossier : les poids de l'**acteur** à chaque checkpoint (`checkpoints/actor_*.pt`, PyTorch), les courbes (`metrics.csv`, `courbes.png`) et la configuration (`config.json`). Les critiques ne sont pas sauvegardés : ils ne servent qu'à entraîner ;
 > - `viewer/` : le labo, déjà exporté. Ouvrir `viewer/index.html` dans un navigateur suffit, sans Python.
 
@@ -14,6 +15,8 @@ Une voiture apprend à prendre un virage en épingle avec **Soft Actor-Critic**,
 - `src/sac_robot/train.py` : la boucle d'entraînement.
 - `src/sac_robot/export.py` : exporte les poids de l'acteur à chaque checkpoint, pour le labo dans le navigateur.
 - `src/sac_robot/export_slides.py` : mesure les chiffres utilisés dans les slides.
+- `src/sac_robot/compare.py` : fait passer les mêmes épisodes à toutes les voitures et compte les plots évités.
+- `src/sac_robot/diagnose.py` : montre où et dans quelles conditions une voiture percute les plots.
 - `viewer/index.html` : le labo d'entraînement. L'agent y conduit **en direct** (le réseau acteur est recalculé en JavaScript), et on pose des plots sur la route d'un clic.
 
 ## Lancer
@@ -106,3 +109,34 @@ Ce qu'on en retient :
 - **la robustesse de SAC** vient de ce qu'il a exploré : il se rattrape bien dans des situations proches de celles qu'il a connues (écart de trajectoire, vitesse), comme le robot Minitaur sur un sol inconnu. Mais il ne sait pas faire quelque chose qu'il n'a jamais eu besoin de faire.
 
 Dans le labo, le bouton en haut à gauche permet de passer d'une voiture à l'autre et de le constater en direct.
+
+## La v2 : comment on a nettement amélioré l'agent
+
+Le diagnostic de la v1 (`uv run diagnose --run runs/obstacles_long`) montrait un problème de **perception**, pas de vitesse. La v1 percutait surtout les plots côté extérieur et en sortie de virage, n'évitait que 42 % des plots au milieu de la route, et roulait plus lentement quand elle les percutait.
+
+La v2 change trois choses (option `--v2`) :
+
+| | v1 | v2 |
+| --- | --- | --- |
+| Rayons | 7, de −60° à +60°, 8 m | 15, de −70° à +70°, **18 m** |
+| Mesures par rayon | 1 (bord **ou** plot, confondus) | **2** (distance au bord, distance au plot) |
+| Plot percuté | −10 | **−40**, plus une petite pénalité quand un plot est à moins de 1,5 m |
+| Placement des plots | d'un côté de la route | **n'importe où**, y compris au milieu (un passage reste toujours libre) |
+| Entraînement | 200 000 pas | **curriculum** (1 plot max, puis 2, puis 3), 400 000 pas, 3 graines |
+
+```bash
+uv run train --steps 400000 --obstacles 3 --v2 --curriculum --seed 0 --run runs/v2_seed0
+uv run compare
+```
+
+Résultat sur les mêmes épisodes, avec l'action moyenne (épisodes avec au moins un plot) :
+
+| Voiture | Plots sur un côté : évités | Plots partout : évités | Arrivées (plots partout) |
+| --- | --- | --- | --- |
+| capteurs, jamais vu de plot | 50 % | 31 % | 22 % |
+| v1 | 75 % | 62 % | 47 % |
+| **v2** (moyenne de 3 graines) | **99 %** (98–100) | **94 %** (93–96) | **80 %** (76–83) |
+
+### Ce qui reste à corriger
+
+Il y a un écart entre les plots évités (94 %) et les arrivées (80 %). La v2 ne percute plus guère de plots, mais elle **sort de la route** dans 9 à 15 % des épisodes. C'est une erreur dans la récompense : percuter un plot coûte −40, alors que sortir de la route ne coûte que −10. Quand la voiture hésite, quitter la route est donc « moins cher » pour elle. Prochaine étape : la même pénalité pour les deux.
