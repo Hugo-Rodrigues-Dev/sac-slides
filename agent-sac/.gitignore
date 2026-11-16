@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+runs_*.log
+# Les deux agents entraînés sont versionnés (runs/sensors, runs/obstacles_long) ;
+# les nouveaux entraînements restent en local.
+runs/*
+!runs/sensors/
+!runs/obstacles_long/
+!runs/compare.json

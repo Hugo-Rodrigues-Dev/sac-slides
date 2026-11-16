@@ -19,6 +19,10 @@ Le serveur propose le navigateur de présentations, l’éditeur, les vignettes 
 
 La présentation n’est plus un fichier HTML autonome : **`npm run dev` lance bien open-slide**.
 
+## Notre agent SAC
+
+Le dossier [`agent-sac/`](agent-sac/) contient notre propre implémentation de SAC sur la piste de l'exposé, les **deux agents entraînés** (poids de l'acteur) et un labo où la voiture conduit en direct dans le navigateur, avec des plots à poser d'un clic. Ouvrir `agent-sac/viewer/index.html` suffit ; le [README du dossier](agent-sac/README.md) explique comment réentraîner.
+
 ## Comprendre le sujet
 
 - [Fiche de compréhension et questions possibles](docs/comprendre-sac.md)
