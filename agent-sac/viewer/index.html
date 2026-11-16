@@ -1,0 +1,568 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SAC Lab</title>
+<style>
+/* Labo d'entraînement : une seule page plein écran, sans scroll.
+   Couleurs par rôle, comme dans l'exposé : indigo = acteur, sarcelle = critiques / réussite,
+   ambre = entropie et α, framboise = sorties de route. */
+:root {
+  --bg: #0A0E12; --panel: #10161C; --panel-2: #141C23; --line: #1F2A33; --line-2: #2A3842;
+  --ink: #E2EAEF; --muted: #7D8D99; --dim: #4B5A65;
+  --actor: #8F8DFF; --critic: #39CDB4; --entropy: #F2A33A; --env: #FF6B8E;
+  --grass: #13221A; --grass-dot: #1A2E22; --asphalt: #2B333A; --white: #DCE4E8;
+  --mono: "SF Mono", "JetBrains Mono", "Cascadia Code", Menlo, Consolas, monospace;
+  --sans: -apple-system, "Segoe UI", system-ui, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--ink); font: 13px/1.4 var(--sans); overflow: hidden; }
+
+.app { height: 100vh; display: grid; grid-template-rows: auto auto minmax(0, 1fr) clamp(140px, 20vh, 220px); gap: 10px; padding: 10px max(12px, env(safe-area-inset-right, 0px)) 10px max(12px, env(safe-area-inset-left, 0px)); }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; min-width: 0; min-height: 0; }
+.tag { font: 600 10.5px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+
+/* ---------- en-tête ---------- */
+header { display: flex; align-items: center; gap: 18px; padding: 10px 16px; }
+.logo { font: 800 18px/1 var(--mono); letter-spacing: .04em; }
+.logo b { color: var(--entropy); }
+.led { width: 9px; height: 9px; border-radius: 50%; background: var(--critic); box-shadow: 0 0 10px var(--critic); animation: pulse 1.6s ease-in-out infinite; }
+.led.off { background: var(--dim); box-shadow: none; animation: none; }
+@keyframes pulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .led { animation: none; } }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; min-width: 0; }
+.chip { font: 11px/1 var(--mono); color: var(--muted); border: 1px solid var(--line-2); border-radius: 999px; padding: 5px 9px; white-space: nowrap; }
+.chip b { color: var(--ink); font-weight: 600; }
+.counter { margin-left: auto; text-align: right; font-family: var(--mono); }
+.counter .big { font-size: 26px; font-weight: 700; color: var(--actor); font-variant-numeric: tabular-nums; line-height: 1; }
+
+/* ---------- centre ---------- */
+.main { display: grid; grid-template-columns: minmax(0, 1fr) clamp(280px, 24vw, 360px); gap: 10px; min-height: 0; }
+.arena { position: relative; overflow: hidden; }
+#arena { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: crosshair; }
+.hud { position: absolute; font-family: var(--mono); pointer-events: none; }
+.hud.tl { top: 12px; left: 14px; }
+.hud.tr { top: 12px; right: 14px; text-align: right; }
+.hud.bl { bottom: 12px; left: 14px; display: flex; gap: 22px; }
+.hud .v { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.hud .outcome { font-size: 15px; font-weight: 700; padding: 6px 10px; border-radius: 6px; border: 1px solid currentColor; background: rgba(10,14,18,.7); }
+
+.side { display: flex; flex-direction: column; gap: 10px; min-height: 0; overflow-y: auto; scrollbar-width: thin; }
+.side .panel { padding: 12px 14px; display: flex; flex-direction: column; gap: 9px; flex-shrink: 0; }
+.side .grow { flex: 1; min-height: 0; }
+
+/* frise des checkpoints */
+.strip { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 14px; align-items: center; padding: 8px 12px; }
+.timeline { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 6px; }
+.cp { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 6px 8px; border-radius: 6px; border: 1px solid transparent; cursor: pointer; background: none; color: inherit; font: inherit; text-align: left; }
+.cp:hover { background: var(--panel-2); }
+.cp[aria-pressed="true"] { border-color: var(--actor); background: rgba(143,141,255,.08); }
+.cp .dot { width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--actor); }
+.cp[aria-pressed="true"] .dot { background: var(--actor); }
+.cp .name { font: 600 12.5px var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cp .meta { font: 11px var(--mono); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cp > span:nth-child(2) { min-width: 0; }
+.cp .bar { width: 48px; height: 5px; border-radius: 3px; background: var(--line-2); overflow: hidden; }
+.cp .bar i { display: block; height: 100%; background: var(--critic); }
+
+.row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+button.b { font: 600 11.5px var(--mono); color: var(--ink); background: var(--panel-2); border: 1px solid var(--line-2); border-radius: 6px; padding: 5px 8px; cursor: pointer; }
+button.b:hover { border-color: var(--muted); }
+button.b[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+button.b.ok { color: var(--critic); } button.b.ko { color: var(--env); }
+button.b.ok[aria-pressed="true"], button.b.ko[aria-pressed="true"] { color: var(--bg); }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--actor); outline-offset: 2px; }
+input[type=range] { width: 100%; accent-color: var(--actor); margin: 0; }
+
+/* télémétrie */
+.tele { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 7px 10px; align-items: center; font-family: var(--mono); font-size: 12px; }
+.tele .k { color: var(--muted); }
+.tele .n { text-align: right; font-variant-numeric: tabular-nums; min-width: 58px; }
+.meter { height: 8px; border-radius: 4px; background: var(--line); position: relative; overflow: hidden; }
+.meter i { position: absolute; top: 0; bottom: 0; background: var(--actor); }
+.meter.center::after { content: ""; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: var(--muted); }
+.toggles label { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 12.5px; }
+.sw { width: 16px; height: 3px; border-radius: 2px; display: inline-block; }
+
+/* ---------- courbes ---------- */
+.charts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; min-height: 0; }
+.chart { position: relative; padding: 10px 12px 6px; display: flex; flex-direction: column; gap: 4px; }
+.chart .head { display: flex; justify-content: space-between; align-items: baseline; }
+.chart .now { font: 700 15px var(--mono); font-variant-numeric: tabular-nums; }
+.chart canvas { flex: 1; min-height: 0; width: 100%; display: block; cursor: crosshair; }
+
+@media (max-width: 1300px) { .cp .bar { display: none; } .chips .chip:nth-child(n+5) { display: none; } }
+@media (max-height: 820px) { .hud .v { font-size: 17px; } .strip { padding: 6px 10px; } }
+#missing { display: none; position: fixed; inset: 0; place-items: center; text-align: center; font-family: var(--mono); color: var(--muted); }
+#missing b { color: var(--ink); }
+</style>
+</head>
+<body>
+<div id="missing"><div><b>Pas encore de données.</b><br>Lance <code>uv run train --obstacles 3 --run runs/obstacles</code> puis <code>uv run export</code>, et recharge cette page.</div></div>
+
+<div class="app" id="app">
+  <header class="panel">
+    <span class="led" id="led"></span>
+    <span class="logo">SAC<b>·</b>LAB</span>
+    <div class="chips">
+      <span class="chip">env <b>piste en U</b></span>
+      <span class="chip">actions <b>volant · pédale</b></span>
+      <span class="chip">entropie cible <b>−2</b></span>
+      <span class="chip">α <b>appris</b></span>
+      <span class="chip">capteurs <b id="chipSens">–</b> · plots à l’entraînement <b id="chipObst">–</b></span>
+      <span class="chip">γ <b>0,99</b> · τ <b>0,005</b> · batch <b>256</b></span>
+    </div>
+    <div class="counter"><div class="tag">checkpoint</div><div class="big" id="hdrStep">–</div></div>
+  </header>
+
+  <div class="panel strip">
+    <div style="display:flex;flex-direction:column;gap:6px"><span class="tag">Agent</span><div class="row" id="agentSel"></div></div>
+    <div class="timeline" id="timeline"></div>
+  </div>
+
+  <div class="main">
+    <div class="panel arena" id="arenaBox">
+      <canvas id="arena" aria-label="La voiture sur la piste"></canvas>
+      <div class="hud tl"><div class="tag">agent en direct</div><div class="v" id="hudMission">–</div><div class="tag" style="margin-top:6px;color:var(--entropy)">clic sur la route : poser / retirer un plot</div></div>
+      <div class="hud tr"><span class="outcome" id="hudOutcome">en route</span></div>
+      <div class="hud bl">
+        <div><div class="tag">temps</div><div class="v" id="hudTime">–</div></div>
+        <div><div class="tag">gain cumulé</div><div class="v" id="hudReturn">–</div></div>
+        <div><div class="tag">vitesse</div><div class="v" id="hudSpeed">–</div></div>
+      </div>
+    </div>
+
+    <aside class="side">
+      <div class="panel">
+        <div class="tag">Pilotage</div>
+        <div class="row">
+          <button class="b" id="play" aria-pressed="true">❚❚ pause</button>
+          <button class="b" id="restart">↺ départ</button>
+          <button class="b speed" data-v="1">1×</button>
+          <button class="b speed" data-v="2" aria-pressed="true">2×</button>
+          <button class="b speed" data-v="4">4×</button>
+        </div>
+        <div class="row">
+          <button class="b mode" data-m="mean" aria-pressed="true">action moyenne μ</button>
+          <button class="b mode" data-m="sample">tirée dans (μ, σ)</button>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="tag">Obstacles · essais en direct</div>
+        <div class="row">
+          <button class="b" id="randObst">plots au hasard</button>
+          <button class="b" id="clearObst">tout effacer</button>
+          <span class="chip" id="obstCount">0 plot</span>
+        </div>
+        <div class="tele" style="grid-template-columns:auto 1fr">
+          <span class="k">essais</span><span class="n" style="text-align:left" id="liveRuns">0</span>
+          <span class="k">arrivées</span><span class="n" style="text-align:left;color:var(--critic)" id="liveOk">–</span>
+          <span class="k">chocs / sorties</span><span class="n" style="text-align:left;color:var(--env)" id="liveKo">–</span>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="tag">Télémétrie · sortie de l’acteur</div>
+        <div class="tele">
+          <span class="k">volant</span><div class="meter center"><i id="mSteer"></i></div><span class="n" id="nSteer">–</span>
+          <span class="k">pédale</span><div class="meter"><i id="mPedal"></i></div><span class="n" id="nPedal">–</span>
+          <span class="k">vitesse</span><div class="meter"><i id="mSpeed" style="background:var(--critic)"></i></div><span class="n" id="nSpeed">–</span>
+          <span class="k">σ volant</span><div class="meter"><i id="mSigS" style="background:var(--entropy)"></i></div><span class="n" id="nSigS">–</span>
+          <span class="k">σ pédale</span><div class="meter"><i id="mSigP" style="background:var(--entropy)"></i></div><span class="n" id="nSigP">–</span>
+        </div>
+      </div>
+      <div class="panel toggles">
+        <div class="tag">Calques</div>
+        <label><input type="checkbox" id="tCloud" checked> <span class="sw" style="background:var(--entropy)"></span> 16 actions tirées dans la politique (entropie)</label>
+        <label><input type="checkbox" id="tTrail" checked> <span class="sw" style="background:var(--actor)"></span> trajectoire</label>
+        <label><input type="checkbox" id="tRays" checked> <span class="sw" style="background:var(--critic)"></span> capteurs (7 rayons)</label>
+      </div>
+    </aside>
+  </div>
+
+  <div class="charts">
+    <div class="panel chart"><div class="head"><span class="tag">arrivées / sorties · 50 derniers épisodes</span><span class="now" id="nowSucc" style="color:var(--critic)">–</span></div><canvas id="cSucc"></canvas></div>
+    <div class="panel chart"><div class="head"><span class="tag">température α · échelle log</span><span class="now" id="nowAlpha" style="color:var(--entropy)">–</span></div><canvas id="cAlpha"></canvas></div>
+    <div class="panel chart"><div class="head"><span class="tag">entropie de la politique</span><span class="now" id="nowEnt" style="color:var(--actor)">–</span></div><canvas id="cEnt"></canvas></div>
+  </div>
+</div>
+
+<script src="agents/index.js"></script>
+<script>
+  // charge chaque agent exporté (viewer/agents/*.js), puis démarre le labo
+  (function load(files) {
+    if (!files.length) { setTimeout(() => window.startLab()); return; }
+    const sc = document.createElement('script');
+    sc.src = 'agents/' + files[0] + '.js';
+    sc.onload = sc.onerror = () => load(files.slice(1));
+    document.body.appendChild(sc);
+  })(window.SAC_AGENT_FILES || []);
+</script>
+<script>
+window.startLab = () => {
+  const AGENTS = window.SAC_AGENTS || [];
+  if (!AGENTS.length) { document.getElementById('missing').style.display = 'grid'; document.getElementById('app').style.display = 'none'; return; }
+
+  const $ = id => document.getElementById(id);
+  const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const fr = (v, d = 1) => v.toFixed(d).replace('.', ',');
+  let D = AGENTS.find(a => a.id === 'sensors') || AGENTS[0];
+  let E = D.env;
+  const S = { snap: 0, playing: true, speed: 2, mode: 'mean', acc: 0, hold: 0 };
+  let obstacles = [];          // plots posés : [x, y]
+  let stats = { runs: 0, ok: 0, ko: 0 };
+
+  // =================== la piste (copie exacte de env.py) ===================
+  const tp = (s, d) => s <= E.L ? [E.R + d, s] : s <= E.L + Math.PI * E.R
+    ? [(E.R + d) * Math.cos((s - E.L) / E.R), E.L + (E.R + d) * Math.sin((s - E.L) / E.R)]
+    : [-(E.R + d), E.L - (s - E.L - Math.PI * E.R)];
+  const trackHeading = s => s <= E.L ? Math.PI / 2 : s <= E.L + Math.PI * E.R ? (s - E.L) / E.R + Math.PI / 2 : -Math.PI / 2;
+  const project = (x, y) => y > E.L ? [E.L + Math.atan2(y - E.L, x) * E.R, Math.hypot(x, y - E.L) - E.R]
+    : x >= 0 ? [y, x - E.R] : [E.L + Math.PI * E.R + (E.L - y), -x - E.R];
+  const wrap = a => ((a + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
+
+  function rays(x, y, h) {
+    return E.rayAngles.map(rel => {
+      const a = h + rel, dx = Math.cos(a), dy = Math.sin(a);
+      for (let t = E.rayStep; t < E.rayRange; t += E.rayStep) {
+        const px = x + dx * t, py = y + dy * t;
+        if (Math.abs(project(px, py)[1]) > E.half || obstacles.some(([ox, oy]) => (px - ox) ** 2 + (py - oy) ** 2 < E.obstR ** 2)) return t;
+      }
+      return E.rayRange;
+    });
+  }
+
+  function observe(c) {
+    const [s, d] = project(c.x, c.y);
+    const rel = wrap(c.h - trackHeading(s));
+    const o = [d / E.half, Math.sin(rel), Math.cos(rel), c.v / E.vMax];
+    for (const k of E.lookahead) { const r = wrap(trackHeading(Math.min(E.end, s + k)) - c.h); o.push(Math.sin(r), Math.cos(r)); }
+    o.push(c.last[0], c.last[1]);
+    if (E.sensors) { c.rays = rays(c.x, c.y, c.h); for (const r of c.rays) o.push(r / E.rayRange); }
+    return o.map(v => Math.max(-1, Math.min(1, v)));
+  }
+
+  function physics(c, a) {
+    const steer = a[0] * E.maxSteer, target = (a[1] + 1) / 2 * E.vMax;
+    c.v += (target - c.v) * Math.min(1, E.dt / E.speedLag);
+    const lim = E.grip / Math.max(c.v, 0.1);
+    const rate = Math.max(-lim, Math.min(lim, c.v * Math.tan(steer) / E.wheelbase));
+    c.h = wrap(c.h + rate * E.dt);
+    c.x += c.v * Math.cos(c.h) * E.dt;
+    c.y += c.v * Math.sin(c.h) * E.dt;
+  }
+
+  // =================== le réseau acteur (même calcul que sac.py) ===================
+  function forward(layers, x) {
+    let h = x;
+    layers.forEach((L, li) => {
+      const out = new Array(L.rows);
+      for (let r = 0; r < L.rows; r++) {
+        let acc = L.b[r];
+        const off = r * L.cols;
+        for (let c = 0; c < L.cols; c++) acc += L.W[off + c] * h[c];
+        out[r] = li < layers.length - 1 ? Math.max(0, acc) : acc;   // ReLU sauf en sortie
+      }
+      h = out;
+    });
+    const mu = [h[0], h[1]], logStd = [h[2], h[3]].map(v => Math.max(-5, Math.min(2, v)));
+    return { mu, std: logStd.map(Math.exp) };
+  }
+  const gauss = () => { const u = Math.max(Math.random(), 1e-9), v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+
+  // =================== un épisode en direct ===================
+  let car;
+  function newRun() {
+    const d0 = Math.random() - 0.5;
+    const [x, y] = tp(0.5, d0);
+    car = { x, y, h: Math.PI / 2 + (Math.random() - 0.5) * 0.2, v: 2 + 2 * Math.random(), last: [0, 0], steps: 0, ret: 0,
+            s: 0.5, trail: [[x, y]], outcome: null, rays: [], pol: null, a: [0, 0] };
+    car.obs = observe(car);
+    car.pol = forward(D.snapshots[S.snap].layers, car.obs);
+    S.hold = 0;
+  }
+  function stepCar() {
+    const p = car.pol;
+    const u = S.mode === 'mean' ? p.mu : p.mu.map((m, i) => m + p.std[i] * gauss());
+    const a = u.map(Math.tanh);
+    physics(car, a);
+    car.last = a; car.a = a; car.steps++;
+    const [s, d] = project(car.x, car.y);
+    const hit = obstacles.some(([ox, oy]) => Math.hypot(car.x - ox, car.y - oy) < E.obstR + E.carRadius);
+    const off = Math.abs(d) > E.half - E.carHalf;
+    car.ret += (s - car.s) - 0.01; car.s = s;
+    car.trail.push([car.x, car.y]);
+    if (hit) car.outcome = 'hit';
+    else if (off) car.outcome = 'off';
+    else if (s >= E.end) car.outcome = 'finished';
+    else if (car.steps >= E.maxSteps) car.outcome = 'timeout';
+    if (car.outcome) {
+      car.ret += car.outcome === 'finished' ? 10 : car.outcome === 'timeout' ? 0 : -10;
+      stats.runs++; car.outcome === 'finished' ? stats.ok++ : stats.ko++;
+      renderStats();
+      return;
+    }
+    car.obs = observe(car);
+    car.pol = forward(D.snapshots[S.snap].layers, car.obs);
+  }
+
+  // =================== interface ===================
+  const fmtStep = s => s.toLocaleString('fr-FR');
+  function renderTimeline() {
+    $('timeline').innerHTML = '';
+    D.snapshots.forEach((sn, i) => {
+      const b = document.createElement('button');
+      b.className = 'cp';
+      b.setAttribute('aria-pressed', i === S.snap);
+      b.title = `${sn.success} % d’arrivées dans les conditions d’entraînement`;
+      b.innerHTML = `<span class="dot"></span><span><div class="name">${i === 0 ? 'pas entraîné' : fmtStep(sn.step) + ' pas'}</div><div class="meta">${sn.success} % arrivées</div></span><span class="bar"><i style="width:${sn.success}%"></i></span>`;
+      b.onclick = () => selectSnap(i);
+      $('timeline').appendChild(b);
+    });
+  }
+  function renderStats() {
+    $('liveRuns').textContent = stats.runs;
+    $('liveOk').textContent = stats.runs ? `${stats.ok} (${Math.round(100 * stats.ok / stats.runs)} %)` : '–';
+    $('liveKo').textContent = stats.runs ? `${stats.ko} (${Math.round(100 * stats.ko / stats.runs)} %)` : '–';
+    $('obstCount').textContent = obstacles.length + (obstacles.length > 1 ? ' plots' : ' plot');
+  }
+  const resetStats = () => { stats = { runs: 0, ok: 0, ko: 0 }; renderStats(); };
+  function selectSnap(i) {
+    S.snap = i; renderTimeline(); drawCharts(); resetStats(); newRun();
+    $('hdrStep').textContent = fmtStep(D.snapshots[i].step);
+    $('hudMission').textContent = i === 0 ? 'pas entraîné' : fmtStep(D.snapshots[i].step) + ' pas';
+  }
+
+  function setPlaying(p) { S.playing = p; $('play').textContent = p ? '❚❚ pause' : '▶ lecture'; $('play').setAttribute('aria-pressed', p); $('led').classList.toggle('off', !p); }
+  $('play').onclick = () => setPlaying(!S.playing);
+  $('restart').onclick = () => { newRun(); setPlaying(true); };
+  document.querySelectorAll('.speed').forEach(b => b.onclick = () => {
+    S.speed = +b.dataset.v; document.querySelectorAll('.speed').forEach(x => x.setAttribute('aria-pressed', x === b));
+  });
+  document.querySelectorAll('.mode').forEach(b => b.onclick = () => {
+    S.mode = b.dataset.m; document.querySelectorAll('.mode').forEach(x => x.setAttribute('aria-pressed', x === b)); resetStats(); newRun();
+  });
+  $('clearObst').onclick = () => { obstacles = []; resetStats(); newRun(); };
+  $('randObst').onclick = () => {
+    obstacles = [];
+    const n = 1 + Math.floor(Math.random() * 3);
+    const spots = Array.from({ length: n }, () => 5 + Math.random() * (E.end - 9)).sort((a, b) => a - b);
+    spots.forEach((s, i) => { if (!i || s - spots[i - 1] >= 4) obstacles.push(tp(s, (Math.random() < 0.5 ? 1 : -1) * (0.3 + 0.7 * Math.random()))); });
+    resetStats(); newRun();
+  };
+  function renderAgents() {
+    $('agentSel').innerHTML = '';
+    AGENTS.forEach(a => {
+      const b = document.createElement('button');
+      b.className = 'b'; b.textContent = a.name;
+      b.setAttribute('aria-pressed', a === D);
+      b.onclick = () => { D = a; E = a.env; renderAgents(); selectSnap(D.snapshots.length - 1); };
+      $('agentSel').appendChild(b);
+    });
+    $('chipObst').textContent = E.trainObstacles ? `0 à ${E.trainObstacles}` : 'aucun';
+    $('chipSens').textContent = E.sensors ? '7 rayons' : 'aucun';
+  }
+  renderAgents();
+  addEventListener('keydown', e => {
+    if (e.key === ' ') { e.preventDefault(); setPlaying(!S.playing); }
+    if (e.key === 'ArrowRight' && S.snap < D.snapshots.length - 1) selectSnap(S.snap + 1);
+    if (e.key === 'ArrowLeft' && S.snap > 0) selectSnap(S.snap - 1);
+  });
+
+  // =================== dessin ===================
+  function fit(c) {
+    const r = c.getBoundingClientRect(), d = devicePixelRatio || 1;
+    const w = Math.max(1, Math.round(r.width * d)), h = Math.max(1, Math.round(r.height * d));
+    if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+    const ctx = c.getContext('2d'); ctx.setTransform(d, 0, 0, d, 0, 0);
+    return { ctx, w: r.width, h: r.height };
+  }
+  const WX0 = -E.R - 2.6, WX1 = E.R + 2.6, WY0 = -1.4, WY1 = E.L + E.R + 2.4;
+  let view = null;   // pour convertir un clic en coordonnées de la piste
+
+  function cloudPoint(a) {
+    const c = { x: car.x, y: car.y, h: car.h, v: car.v };
+    for (let i = 0; i < 12; i++) physics(c, a);
+    return [c.x, c.y];
+  }
+
+  function drawArena() {
+    const { ctx, w, h } = fit($('arena'));
+    const k = Math.min(w / (WX1 - WX0), h / (WY1 - WY0));
+    const ox = (w - (WX1 - WX0) * k) / 2, oy = (h - (WY1 - WY0) * k) / 2;
+    const X = x => ox + (x - WX0) * k, Y = y => oy + (WY1 - y) * k;
+    view = { k, ox, oy };
+
+    ctx.fillStyle = css('--grass'); ctx.fillRect(0, 0, w, h);
+    ctx.strokeStyle = css('--grass-dot'); ctx.lineWidth = 1;
+    for (let x = Math.ceil(WX0 - ox / k); x <= WX1 + ox / k; x++) { ctx.beginPath(); ctx.moveTo(X(x), 0); ctx.lineTo(X(x), h); ctx.stroke(); }
+    for (let y = Math.floor(WY0 - oy / k); y <= WY1 + oy / k; y++) { ctx.beginPath(); ctx.moveTo(0, Y(y)); ctx.lineTo(w, Y(y)); ctx.stroke(); }
+    const line = d => { ctx.beginPath(); for (let s = 0; s <= E.end + 0.01; s += 0.25) { const [x, y] = tp(Math.min(s, E.end), d); s ? ctx.lineTo(X(x), Y(y)) : ctx.moveTo(X(x), Y(y)); } };
+    line(0); ctx.strokeStyle = css('--asphalt'); ctx.lineWidth = 2 * E.half * k; ctx.lineCap = 'butt'; ctx.stroke();
+    for (const d of [-E.half + 0.06, E.half - 0.06]) { line(d); ctx.strokeStyle = css('--white'); ctx.lineWidth = 1.5; ctx.stroke(); }
+    line(0); ctx.setLineDash([8, 10]); ctx.strokeStyle = 'rgba(220,228,232,.35)'; ctx.lineWidth = 1.5; ctx.stroke(); ctx.setLineDash([]);
+    for (const [s, c, txt] of [[0, css('--muted'), 'départ'], [E.end, css('--entropy'), 'arrivée']]) {
+      const [ax, ay] = tp(s, -E.half), [bx, by] = tp(s, E.half);
+      ctx.beginPath(); ctx.moveTo(X(ax), Y(ay)); ctx.lineTo(X(bx), Y(by)); ctx.strokeStyle = c; ctx.lineWidth = 4; ctx.stroke();
+      ctx.fillStyle = c; ctx.font = `600 ${Math.max(10, 0.42 * k)}px ${css('--mono')}`; ctx.textAlign = 'center';
+      const [cx, cy] = tp(s, 0); ctx.fillText(txt, X(cx), Y(cy) + 0.9 * k);
+    }
+    // plots
+    for (const [px, py] of obstacles) {
+      ctx.beginPath(); ctx.arc(X(px), Y(py), E.obstR * k, 0, 7); ctx.fillStyle = css('--entropy'); ctx.fill();
+      ctx.beginPath(); ctx.arc(X(px), Y(py), E.obstR * k * 0.45, 0, 7); ctx.fillStyle = '#FFFFFF'; ctx.fill();
+    }
+    // trajectoire
+    if ($('tTrail').checked) {
+      ctx.beginPath(); car.trail.forEach(([x, y], j) => j ? ctx.lineTo(X(x), Y(y)) : ctx.moveTo(X(x), Y(y)));
+      ctx.strokeStyle = css('--actor'); ctx.lineWidth = 3; ctx.lineJoin = 'round'; ctx.shadowColor = css('--actor'); ctx.shadowBlur = 8; ctx.stroke(); ctx.shadowBlur = 0;
+    }
+    // capteurs
+    if ($('tRays').checked && E.sensors && car.rays.length && !car.outcome) {
+      car.rays.forEach((dist, i) => {
+        const a = car.h + E.rayAngles[i];
+        ctx.beginPath(); ctx.moveTo(X(car.x), Y(car.y)); ctx.lineTo(X(car.x + dist * Math.cos(a)), Y(car.y + dist * Math.sin(a)));
+        const near = dist < 2.5;
+        ctx.strokeStyle = near ? css('--env') : css('--critic'); ctx.globalAlpha = near ? .9 : .35; ctx.lineWidth = near ? 2 : 1.2; ctx.stroke();
+      });
+      ctx.globalAlpha = 1;
+    }
+    // nuage : 16 actions tirées dans (μ, σ), projetées sur 1,2 s
+    if ($('tCloud').checked && !car.outcome && car.pol) {
+      for (let i = 0; i < 16; i++) {
+        const a = car.pol.mu.map((m, j) => Math.tanh(m + car.pol.std[j] * gauss()));
+        const [cx, cy] = cloudPoint(a);
+        ctx.beginPath(); ctx.moveTo(X(car.x), Y(car.y)); ctx.lineTo(X(cx), Y(cy));
+        ctx.strokeStyle = css('--entropy'); ctx.globalAlpha = .25; ctx.lineWidth = 1.2; ctx.stroke();
+        ctx.beginPath(); ctx.arc(X(cx), Y(cy), 3, 0, 7); ctx.fillStyle = css('--entropy'); ctx.globalAlpha = .9; ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+    // voiture
+    ctx.save(); ctx.translate(X(car.x), Y(car.y)); ctx.rotate(-car.h);
+    ctx.shadowColor = css('--actor'); ctx.shadowBlur = 14;
+    ctx.fillStyle = car.outcome && car.outcome !== 'finished' ? css('--env') : css('--actor');
+    ctx.fillRect(-0.95 * k, -0.5 * k, 1.9 * k, 1.0 * k);
+    ctx.shadowBlur = 0; ctx.fillStyle = 'rgba(255,255,255,.8)'; ctx.fillRect(0.2 * k, -0.36 * k, 0.45 * k, 0.72 * k);
+    ctx.restore();
+
+    // HUD et télémétrie
+    $('hudTime').textContent = fr(car.steps * E.dt) + ' s';
+    $('hudReturn').textContent = fr(car.ret);
+    $('hudSpeed').textContent = fr(car.v) + ' m/s';
+    const out = $('hudOutcome');
+    out.textContent = car.outcome ? { finished: 'arrivée ✓', off: 'sortie de route ✗', hit: 'plot percuté ✗', timeout: 'temps écoulé ⏱' }[car.outcome] : 'en route…';
+    out.style.color = car.outcome ? (car.outcome === 'finished' ? css('--critic') : css('--env')) : css('--muted');
+    const steer = car.a[0], pedal = (car.a[1] + 1) / 2;
+    const st = $('mSteer'); st.style.left = (50 + Math.min(steer, 0) * 50) + '%'; st.style.width = Math.abs(steer) * 50 + '%';
+    $('mPedal').style.width = pedal * 100 + '%';
+    $('mSpeed').style.width = Math.min(100, car.v / E.vMax * 100) + '%';
+    $('nSteer').textContent = (steer >= 0 ? '+' : '−') + Math.abs(steer * 30).toFixed(0) + '°';
+    $('nPedal').textContent = fr(pedal, 2);
+    $('nSpeed').textContent = fr(car.v) + ' m/s';
+    if (car.pol) {
+      // σ dans l'espace des actions, approché par la pente de tanh en μ
+      const sS = car.pol.std[0] * (1 - Math.tanh(car.pol.mu[0]) ** 2), sP = car.pol.std[1] * (1 - Math.tanh(car.pol.mu[1]) ** 2) / 2;
+      $('mSigS').style.width = Math.min(100, sS * 200) + '%'; $('nSigS').textContent = '±' + Math.round(sS * 30) + '°';
+      $('mSigP').style.width = Math.min(100, sP * 400) + '%'; $('nSigP').textContent = '±' + fr(sP, 2);
+    }
+  }
+
+  // clic sur la piste : poser ou retirer un plot
+  $('arena').addEventListener('click', ev => {
+    if (!view) return;
+    const r = $('arena').getBoundingClientRect();
+    const x = WX0 + (ev.clientX - r.left - view.ox) / view.k, y = WY1 - (ev.clientY - r.top - view.oy) / view.k;
+    const near = obstacles.findIndex(([ox, oy]) => Math.hypot(ox - x, oy - y) < 0.8);
+    if (near >= 0) obstacles.splice(near, 1);
+    else if (Math.abs(project(x, y)[1]) <= E.half) obstacles.push([x, y]);
+    else return;
+    resetStats(); newRun();
+  });
+
+  // =================== courbes ===================
+  const charts = [];
+  function chart(id, series, opts) {
+    const c = $(id);
+    const { ctx, w, h } = fit(c);
+    const pad = { l: 38, r: 8, t: 6, b: 18 };
+    const xs = D.curves.step, xmax = xs[xs.length - 1] || 1;
+    const X = x => pad.l + x / xmax * (w - pad.l - pad.r);
+    const tr = v => opts.log ? Math.log10(v) : v;
+    const Y = v => h - pad.b - (tr(v) - opts.lo) / (opts.hi - opts.lo) * (h - pad.t - pad.b);
+    ctx.clearRect(0, 0, w, h);
+    ctx.font = `10px ${css('--mono')}`; ctx.lineWidth = 1;
+    for (const t of opts.ticks) {
+      ctx.strokeStyle = css('--line'); ctx.beginPath(); ctx.moveTo(pad.l, Y(t)); ctx.lineTo(w - pad.r, Y(t)); ctx.stroke();
+      ctx.fillStyle = css('--muted'); ctx.textAlign = 'right'; ctx.fillText(opts.fmt(t), pad.l - 5, Y(t) + 3);
+    }
+    ctx.textAlign = 'center';
+    for (let i = 0; i <= 4; i++) { const s = xmax * i / 4; ctx.fillText(Math.round(s / 1000) + 'k', X(s), h - 4); }
+    if (opts.target !== undefined) {
+      ctx.strokeStyle = css('--entropy'); ctx.setLineDash([5, 4]); ctx.beginPath(); ctx.moveTo(pad.l, Y(opts.target)); ctx.lineTo(w - pad.r, Y(opts.target)); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle = css('--entropy'); ctx.textAlign = 'right'; ctx.fillText('cible ' + opts.fmt(opts.target), w - pad.r - 2, Y(opts.target) - 4);
+    }
+    for (const s of series) {
+      ctx.beginPath(); let on = false;
+      s.ys.forEach((v, i) => { if (v == null || (opts.log && v <= 0)) return; on ? ctx.lineTo(X(xs[i]), Y(v)) : ctx.moveTo(X(xs[i]), Y(v)); on = true; });
+      ctx.strokeStyle = css(s.color); ctx.lineWidth = 1.8; ctx.stroke();
+    }
+    D.snapshots.forEach((sn, i) => {
+      ctx.strokeStyle = i === S.snap ? css('--ink') : css('--line-2'); ctx.setLineDash(i === S.snap ? [] : [2, 3]);
+      ctx.beginPath(); ctx.moveTo(X(sn.step), pad.t); ctx.lineTo(X(sn.step), h - pad.b); ctx.stroke();
+    });
+    ctx.setLineDash([]);
+    charts.push({ c, X });
+  }
+  function valueAt(arr) {
+    const s = D.snapshots[S.snap].step; let best = null;
+    D.curves.step.forEach((x, i) => { if (x <= s && arr[i] != null) best = arr[i]; });
+    return best;
+  }
+  function drawCharts() {
+    charts.length = 0;
+    chart('cSucc', [{ ys: D.curves.success, color: '--critic' }, { ys: D.curves.crash, color: '--env' }], { lo: 0, hi: 100, ticks: [0, 50, 100], fmt: t => t + '%' });
+    const al = D.curves.alpha.filter(v => v > 0);
+    const lo = Math.floor(Math.log10(Math.min(...al))), hi = Math.ceil(Math.log10(Math.max(...al)) + 0.01);
+    const ticks = []; for (let e = lo; e <= hi; e++) ticks.push(10 ** e);
+    chart('cAlpha', [{ ys: D.curves.alpha, color: '--entropy' }], { log: true, lo, hi, ticks, fmt: t => t >= 1 ? String(t) : String(t).replace('.', ',') });
+    chart('cEnt', [{ ys: D.curves.entropy, color: '--actor' }], { lo: -4, hi: 2, ticks: [-4, -2, 0, 2], fmt: t => (t > 0 ? '+' : t < 0 ? '−' : '') + Math.abs(t), target: -2 });
+    const succ = valueAt(D.curves.success), a = valueAt(D.curves.alpha), e = valueAt(D.curves.entropy);
+    $('nowSucc').textContent = succ == null ? '–' : Math.round(succ) + ' %';
+    $('nowAlpha').textContent = a == null ? '–' : 'α = ' + (a < 0.1 ? a.toFixed(3) : a.toFixed(2)).replace('.', ',');
+    $('nowEnt').textContent = e == null ? '–' : (e >= 0 ? '+' : '−') + fr(Math.abs(e), 2);
+  }
+  for (const id of ['cSucc', 'cAlpha', 'cEnt']) {
+    $(id).addEventListener('click', ev => {
+      const ch = charts.find(c => c.c.id === id); if (!ch) return;
+      let best = 0, bd = Infinity;
+      D.snapshots.forEach((sn, i) => { const d = Math.abs(ch.X(sn.step) - ev.offsetX); if (d < bd) { bd = d; best = i; } });
+      selectSnap(best);
+    });
+  }
+
+  // =================== boucle ===================
+  let lastT = performance.now();
+  function loop(now) {
+    const dt = Math.min(0.1, Math.max(0, now - lastT) / 1000); lastT = now;
+    if (S.playing) {
+      if (!car.outcome) {
+        S.acc += dt * S.speed / E.dt;
+        while (S.acc >= 1 && !car.outcome) { S.acc -= 1; stepCar(); }
+      } else {
+        S.hold += dt;
+        if (S.hold > 1.2) newRun();
+      }
+    }
+    drawArena();
+    requestAnimationFrame(loop);
+  }
+  selectSnap(D.snapshots.length - 1);
+  new ResizeObserver(() => drawCharts()).observe(document.querySelector('.charts'));
+  requestAnimationFrame(loop);
+};
+</script>
+</body>
+</html>

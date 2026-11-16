@@ -1,0 +1,44 @@
+{
+  "aveugle": {
+    "sans plots": {
+      "arrivées": 100,
+      "plot percuté": 0,
+      "sortie de route": 0,
+      "temps écoulé": 0
+    },
+    "avec plots": {
+      "arrivées": 40,
+      "plot percuté": 60,
+      "sortie de route": 0,
+      "temps écoulé": 0
+    }
+  },
+  "capteurs": {
+    "sans plots": {
+      "arrivées": 100,
+      "plot percuté": 0,
+      "sortie de route": 0,
+      "temps écoulé": 0
+    },
+    "avec plots": {
+      "arrivées": 50,
+      "plot percuté": 50,
+      "sortie de route": 0,
+      "temps écoulé": 0
+    }
+  },
+  "plots": {
+    "sans plots": {
+      "arrivées": 100,
+      "plot percuté": 0,
+      "sortie de route": 0,
+      "temps écoulé": 0
+    },
+    "avec plots": {
+      "arrivées": 69,
+      "plot percuté": 28,
+      "sortie de route": 2,
+      "temps écoulé": 0
+    }
+  }
+}
