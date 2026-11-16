@@ -27,6 +27,7 @@ open viewer/index.html
 ```
 
 Dans le labo :
+
 - **frise du haut** : choisir un checkpoint de l'entraînement (pas entraîné → fin), aussi au clavier avec ← et → ;
 - **clic sur la route** : poser un plot, clic sur un plot : le retirer, ou « plots au hasard » ;
 - **action moyenne μ / tirée dans (μ, σ)** : conduite déterministe ou avec le hasard de la politique ;
@@ -44,12 +45,12 @@ uv run export-slides         # écrit runs/slides_data.json
 
 ## Le problème
 
-| Élément du MDP | Ici |
-| --- | --- |
-| État *s* (12 nombres, 19 avec les capteurs) | écart au milieu de la route, angle par rapport à la route, vitesse, direction de la route à 3, 6 et 10 m devant, action précédente, [7 rayons] |
-| Action *a* (2 nombres continus dans [−1, 1]) | volant (±30°), pédale (vitesse visée de 0 à 12 m/s) |
-| Récompense *r* | + les mètres parcourus le long de la route, −10 en cas de sortie de route ou de plot percuté, +10 à l'arrivée |
-| Fin d'épisode | arrivée, sortie de route, ou 30 secondes écoulées |
+| Élément du MDP                                | Ici                                                                                                                                                 |
+| ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| État *s* (12 nombres, 19 avec les capteurs)  | écart au milieu de la route, angle par rapport à la route, vitesse, direction de la route à 3, 6 et 10 m devant, action précédente, [7 rayons] |
+| Action *a* (2 nombres continus dans [−1, 1]) | volant (±30°), pédale (vitesse visée de 0 à 12 m/s)                                                                                            |
+| Récompense *r*                               | + les mètres parcourus le long de la route, −10 en cas de sortie de route ou de plot percuté, +10 à l'arrivée                                  |
+| Fin d'épisode                                  | arrivée, sortie de route, ou 30 secondes écoulées                                                                                                |
 
 La piste : une ligne droite de 8 m, une épingle de 5 m de rayon, une ligne droite de 8 m, avec une route de 3 m de large. Le compromis : aller vite rapporte plus, mais trop vite dans le virage, les pneus décrochent (accélération latérale limitée à 7 m/s²) et la voiture tire tout droit.
 
@@ -57,28 +58,28 @@ La piste : une ligne droite de 8 m, une épingle de 5 m de rayon, une ligne droi
 
 Un entraînement par valeur de α, 40 000 pas chacun :
 
-| α | Arrivées | Temps au tour | Entropie | σ du volant à l'entrée du virage |
-| --- | --- | --- | --- | --- |
-| 0,003 (fixé) | 100 % | 5,7 s | −4,4 | ±1° |
-| 0,01 (fixé) | 100 % | 4,4 s | −3,4 | ±2° |
-| 0,05 (fixé) | 100 % | 4,8 s | −0,8 | ±5° |
-| 0,2 (fixé) | 100 % | 5,5 s | +0,4 | ±11° |
-| 1 (fixé) | 100 % | 7,6 s | +0,7 | ±13° |
-| appris (cible −2) | 100 % | — | −1,5 | α final ≈ 0,024 |
+| α                 | Arrivées | Temps au tour | Entropie | σ du volant à l'entrée du virage |
+| ------------------ | --------- | ------------- | -------- | ----------------------------------- |
+| 0,003 (fixé)      | 100 %     | 5,7 s         | −4,4    | ±1°                               |
+| 0,01 (fixé)       | 100 %     | 4,4 s         | −3,4    | ±2°                               |
+| 0,05 (fixé)       | 100 %     | 4,8 s         | −0,8    | ±5°                               |
+| 0,2 (fixé)        | 100 %     | 5,5 s         | +0,4     | ±11°                              |
+| 1 (fixé)          | 100 %     | 7,6 s         | +0,7     | ±13°                              |
+| appris (cible −2) | 100 %     | —            | −1,5    | α final ≈ 0,024                   |
 
 Toutes les voitures finissent le virage : la piste est assez simple. Ce qui change, c'est la vitesse. Avec trop peu d'entropie, la voiture conduit toujours pareil et reste plus lente ; avec trop d'entropie, elle zigzague et perd du temps. α appris finit entre les deux. Comme il n'y a qu'un entraînement par α, l'ordre exact entre les valeurs du milieu peut varier d'un essai à l'autre.
 
 ## Où retrouver chaque idée de l'exposé dans le code
 
-| Dans l'exposé | Dans `sac.py` |
-| --- | --- |
-| L'acteur sort deux zones (volant, pédale) | `Actor` : une moyenne et un écart-type par action, puis `tanh` |
-| Deux critiques qui notent | `Critic` ×2 : prennent l'état **et** l'action, sortent une note |
-| On garde la note la plus basse | `torch.min(self.q1_target(...), self.q2_target(...))` |
-| Bonus d'entropie | `- alpha * logp2` dans la cible, `alpha * logp` dans la perte de l'acteur |
-| α appris automatiquement | `log_alpha` et `target_entropy = -2` |
-| Replay buffer, 256 moments au hasard | `ReplayBuffer.sample` |
-| Réseaux cibles qui suivent doucement (τ) | fin de `SAC.update` |
+| Dans l'exposé                             | Dans `sac.py`                                                               |
+| ------------------------------------------ | ----------------------------------------------------------------------------- |
+| L'acteur sort deux zones (volant, pédale) | `Actor` : une moyenne et un écart-type par action, puis `tanh`           |
+| Deux critiques qui notent                  | `Critic` ×2 : prennent l'état **et** l'action, sortent une note     |
+| On garde la note la plus basse             | `torch.min(self.q1_target(...), self.q2_target(...))`                       |
+| Bonus d'entropie                           | `- alpha * logp2` dans la cible, `alpha * logp` dans la perte de l'acteur |
+| α appris automatiquement                  | `log_alpha` et `target_entropy = -2`                                      |
+| Replay buffer, 256 moments au hasard       | `ReplayBuffer.sample`                                                       |
+| Réseaux cibles qui suivent doucement (τ) | fin de `SAC.update`                                                         |
 
 ## L'expérience : une voiture entraînée sans plots les évite-t-elle ?
 
@@ -92,13 +93,14 @@ uv run compare                                                           # même
 
 Les trois voitures passent les mêmes épisodes, avec 0 à 3 plots posés d'un côté de la route, en jouant l'action moyenne :
 
-| Voiture | Sans plots | Plots évités (un par un) |
-| --- | --- | --- |
-| aveugle : piste seule, sans capteurs | 100 % | 36 % (par chance : le plot n'était pas sur sa trajectoire) |
-| capteurs, jamais vu de plot | 100 % | 48 % |
-| entraînée avec des plots (200 000 pas) | 100 % | 75 % |
+| Voiture                                  | Sans plots | Plots évités (un par un)                                  |
+| ---------------------------------------- | ---------- | ----------------------------------------------------------- |
+| aveugle : piste seule, sans capteurs     | 100 %      | 36 % (par chance : le plot n'était pas sur sa trajectoire) |
+| capteurs, jamais vu de plot              | 100 %      | 48 %                                                        |
+| entraînée avec des plots (200 000 pas) | 100 %      | 75 %                                                        |
 
 Ce qu'on en retient :
+
 - **sans capteurs**, aucun algorithme ne peut éviter un obstacle : il est invisible ;
 - **avec capteurs mais sans plots à l'entraînement**, l'effet existe mais reste faible (+12 points). La voiture n'a jamais été récompensée pour contourner quelque chose au **milieu** de la route : ses rayons n'ont vu que des bords, sur les côtés ;
 - **la robustesse de SAC** vient de ce qu'il a exploré : il se rattrape bien dans des situations proches de celles qu'il a connues (écart de trajectoire, vitesse), comme le robot Minitaur sur un sol inconnu. Mais il ne sait pas faire quelque chose qu'il n'a jamais eu besoin de faire.
